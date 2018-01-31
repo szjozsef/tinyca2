@@ -1,0 +1,174 @@
+[ ca ]
+default_ca = server_ca
+ocsp_url = http://<your.oscp.server/url>
+aia_url = http://<your.aia.server/url>
+crl_url = http://<your.crl.server/url>
+
+[ policy_client ]
+countryName = optional
+stateOrProvinceName = optional
+organizationName = optional
+organizationalUnitName = optional
+commonName = supplied
+emailAddress = optional
+
+[ policy_server ]
+countryName = optional
+stateOrProvinceName = optional
+organizationName = optional
+organizationalUnitName = optional
+commonName = supplied
+emailAddress = optional
+
+[ policy_ca ]
+countryName = optional
+stateOrProvinceName = optional
+organizationName = optional
+organizationalUnitName = optional
+commonName = supplied
+emailAddress = optional
+
+[ req ]
+default_bits = 4096
+default_keyfile = privkey.pem
+distinguished_name = req_distinguished_name
+attributes = req_attributes
+x509_extensions = v3_ca
+string_mask = utf8only
+req_extensions = v3_req
+
+[ req_distinguished_name ]
+countryName = Country Name (2 letter code)
+countryName_default = CA
+countryName_min = 2
+countryName_max = 2
+stateOrProvinceName = State or Province Name (full name)
+localityName = Locality Name (eg, city)
+0.organizationName = Organization Name (eg, company)
+organizationalUnitName = Organizational Unit Name (eg, section)
+commonName = Common Name (eg, YOUR name)
+commonName_max = 64
+emailAddress = Email Address
+emailAddress_max = 40
+
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+
+[ req_attributes ]
+challengePassword = A challenge password
+challengePassword_min = 4
+challengePassword_max = 20
+unstructuredName = An optional company name
+
+[ ocsp_cert ]
+basicConstraints = CA:FALSE
+keyUsage = critical, digitalSignature
+extendedKeyUsage = critical, OCSPSigning
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+authorityInfoAccess = @issuer_info
+noCheck = null
+
+[ ocsp_info ]
+caIssuers;URI.0 = $ca::aia_url
+OCSP;URI.0 = $ca::ocsp_url
+
+[ issuer_info ]
+caIssuers;URI.0= $ca::aia_url
+
+[ crl_info ]
+URI.0 = $ca::crl_url
+
+[ v3_ca ]
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+basicConstraints = critical,CA:true
+crlDistributionPoints = @crl_info
+authorityInfoAccess = @ocsp_info
+subjectAltName = email:copy
+keyUsage = critical, keyCertSign, cRLSign
+
+[ crl_ext ]
+authorityInfoAccess = @issuer_info
+authorityKeyIdentifier = keyid:always
+
+[ server_ca ]
+dir = %dir%
+certs = $dir/certs
+crl_dir = $dir/crl
+database = $dir/index.txt
+new_certs_dir = $dir/newcerts
+certificate = $dir/cacert.pem
+serial = $dir/serial
+crl = $dir/crl.pem
+crlnumber = $dir/crl_serial
+private_key = $dir/cacert.key
+RANDFILE = $dir/.rand
+x509_extensions = server_cert
+default_days = 1825
+default_crl_days = 30
+default_md = sha256
+preserve = no
+policy = policy_server
+unique_subject = yes
+
+[ client_ca ]
+dir = %dir%
+certs = $dir/certs
+crl_dir = $dir/crl
+database = $dir/index.txt
+new_certs_dir = $dir/newcerts
+certificate = $dir/cacert.pem
+serial = $dir/serial
+crl = $dir/crl.pem
+crlnumber = $dir/crl_serial
+private_key = $dir/cacert.key
+RANDFILE = $dir/.rand
+x509_extensions = client_cert
+default_days = 365
+default_crl_days = 30
+default_md = sha256
+preserve = no
+policy = policy_client
+unique_subject = yes
+
+[ ca_ca ]
+dir = %dir%
+certs = $dir/certs
+crl_dir = $dir/crl
+database = $dir/index.txt
+new_certs_dir = $dir/newcerts
+certificate = $dir/cacert.pem
+serial = $dir/serial
+crl = $dir/crl.pem
+crlnumber = $dir/crl_serial
+private_key = $dir/cacert.key
+RANDFILE = $dir/.rand
+x509_extensions = v3_ca
+default_days = 36500
+default_crl_days = 30
+default_md = sha256
+preserve = no
+policy = policy_ca
+unique_subject = yes
+
+[ client_cert ]
+basicConstraints = CA:FALSE
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+crlDistributionPoints = @crl_info
+authorityInfoAccess = @ocsp_info
+subjectAltName = email:copy
+keyUsage = critical, digitalSignature
+extendedKeyUsage = clientAuth
+
+[ server_cert ]
+basicConstraints = CA:FALSE
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+crlDistributionPoints = @crl_info
+authorityInfoAccess = @ocsp_info
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth, clientAuth
+subjectAltName = ${ENV::SUBJECTALTNAMEDNS}
