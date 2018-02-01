@@ -6,6 +6,6 @@ A modified version of TinyCA2
 - deleted obsoleted entries from openssl.cnf , like ns*
 - long random serial for every certificate, serial always presented as hexa
 - compatible with openssl 1.x.x
-- addedd support for certificate dates > 2039 (support long date format in index.txt)
-- addedd support for ENV based DNS SAN entries
-- addedd crlnumber option to openssl.cnf (serial file for crl)
+- added support for certificate dates > 2039 (support long date format in index.txt)
+- added support for ENV based DNS SAN entries
+- added crlnumber option to openssl.cnf (serial file for crl)
