@@ -406,7 +406,7 @@ sub newcrl {
    $cmd = "$self->{'bin'} ca -gencrl";
    $cmd .= " -passin env:SSLPASS";
    $cmd .= " -config $opts->{'config'}";
-
+   $cmd .= " -crlexts crl_ext";
    $cmd .= " -out $tmpfile";
    $cmd .= " -crldays $opts->{'crldays'}";
 
