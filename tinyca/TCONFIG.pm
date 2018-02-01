@@ -71,11 +71,11 @@ sub init_config {
          if($section eq "ca" ||
             $section eq "policy_client" ||
             $section eq "policy_server" ||
+            $section eq "policy_ocsp" ||
             $section eq "policy_ca" ||
             $section eq "req" ||
             $section eq "req_distinguished_name" ||
             $section eq "v3_req" ||
-            $section eq "ocsp_cert" ||
             $section eq "ocsp_info" ||
             $section eq "issuer_info" ||
             $section eq "crl_info" ||
@@ -143,6 +143,30 @@ sub init_config {
       $self->{'server_cert'}->{'subjectAltName'} = 'none';
    }
 
+   # ocsp
+   if(defined($self->{'ocsp_cert'}->{'subjectAltName'})) {
+      if($self->{'ocsp_cert'}->{'subjectAltName'}
+            =~ /ENV:.*IP/) {
+         $self->{'ocsp_cert'}->{'subjectAltNameType'} = 'ip';
+         $self->{'ocsp_cert'}->{'subjectAltName'} = 'user';
+      }elsif($self->{'ocsp_cert'}->{'subjectAltName'}
+            =~ /ENV:.*DNS/) {
+         $self->{'ocsp_cert'}->{'subjectAltNameType'} = 'dns';
+         $self->{'ocsp_cert'}->{'subjectAltName'} = 'user';
+      }elsif($self->{'ocsp_cert'}->{'subjectAltName'}
+            =~ /ENV:.*RAW/) {
+         $self->{'ocsp_cert'}->{'subjectAltNameType'} = 'raw';
+         $self->{'ocsp_cert'}->{'subjectAltName'} = 'user';
+      }elsif($self->{'ocsp_cert'}->{'subjectAltName'}
+            eq 'email:copy') {
+         $self->{'ocsp_cert'}->{'subjectAltName'} = 'emailcopy';
+         $self->{'ocsp_cert'}->{'subjectAltNameType'} = 'ip';
+      }
+   }else {
+      $self->{'ocsp_cert'}->{'subjectAltNameType'} = 'ip';
+      $self->{'ocsp_cert'}->{'subjectAltName'} = 'none';
+   }
+
    # client
    if(defined($self->{'client_cert'}->{'subjectAltName'})) {
       if($self->{'client_cert'}->{'subjectAltName'}
@@ -171,7 +195,7 @@ sub init_config {
       $self->{'client_cert'}->{'subjectAltName'} = 'none';
    }
 
-   foreach my $sect ('server_cert', 'client_cert', 'v3_ca') {
+   foreach my $sect ('server_cert', 'client_cert', 'v3_ca', 'ocsp_cert') {
       # store nsRevocationUrl information
       if(defined($self->{$sect}->{'nsRevocationUrl'})) {
          if($self->{$sect}->{'nsRevocationUrl'}
@@ -318,12 +342,12 @@ sub write_config {
          ca
          policy_client
          policy_server
+         policy_ocsp
          policy_ca
          req
          req_distinguished_name
          v3_req
          req_attributes
-         ocsp_cert
          ocsp_info
          issuer_info
          crl_info
@@ -349,10 +373,12 @@ sub write_config {
          v3_ca
          crl_ext
          server_ca
+         ocsp_ca
          client_ca
          ca_ca
          client_cert
          server_cert
+         ocsp_cert
          );
 
    foreach $sect (@sections) {
@@ -412,6 +438,7 @@ sub write_config {
             }
          }
       } elsif($sect eq "server_cert" ||
+              $sect eq "ocsp_cert"   ||
               $sect eq "client_cert") {
          @opts = qw(
                basicConstraints
@@ -517,6 +544,7 @@ sub write_config {
            }
          }
       } elsif(($sect eq "server_ca") ||
+              ($sect eq "ocsp_ca")   ||
               ($sect eq "client_ca") ||
               ($sect eq "ca_ca")) {
          @opts = qw(
