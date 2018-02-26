@@ -643,7 +643,7 @@ sub sign_req {
 sub get_import_req {
    my ($self, $main, $opts, $box) = @_;
 
-   my ($ret, $ext, $der);
+   my ($ret, $ext);
 
    $box->destroy() if(defined($box));
 
@@ -682,9 +682,10 @@ sub get_import_req {
    } else {
       $format = "DER";
    }
+   close(IN);
 
    if($format eq "DER") {
-      ($ret, $der, $ext) = $opts->{'in'} = $self->{'OpenSSL'}->convdata(
+      ($ret, $opts->{'in'}, $ext) = $self->{'OpenSSL'}->convdata(
             'cmd'     => 'req',
             'data'    => $opts->{'in'},
             'inform'  => 'DER',
