@@ -150,7 +150,7 @@ sub get_renew_cert {
 
       if($status eq _("VALID")) {
          $t = sprintf(
-               _("Can't renew Certifikate with Status: %s\nPlease revoke the Certificate first"),
+               _("Can't renew Certificate with Status: %s\nPlease revoke the Certificate first"),
                $status);
          GUI::HELPERS::print_warning($t);
          return;
@@ -207,7 +207,7 @@ sub get_revoke_cert {
       $status = $main->{'certbrowser'}->selection_status();
 
       if($status ne _("VALID")) {
-         $t = sprintf(_("Can't revoke Certifikate with Status: %s"),
+         $t = sprintf(_("Can't revoke Certificate with Status: %s"),
                $status);
          GUI::HELPERS::print_warning($t);
          return;
