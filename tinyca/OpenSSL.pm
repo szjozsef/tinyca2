@@ -359,7 +359,7 @@ sub newcert {
    system($cmd);
    open(IN, "<$serial") || do {
       print STDERR "Can't read serial";
-      return;
+      return(1,"Can't read serial");
    };
    $serial = <IN>;
    chomp($serial);
