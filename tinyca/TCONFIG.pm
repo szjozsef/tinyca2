@@ -377,8 +377,8 @@ sub write_config {
          client_ca
          ca_ca
          client_cert
-         server_cert
          ocsp_cert
+         server_cert
          );
 
    foreach $sect (@sections) {
