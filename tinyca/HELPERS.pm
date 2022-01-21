@@ -132,7 +132,7 @@ sub parse_dn {
 sub parse_extensions {
    my ($lines, $mode) = @_;
 
-   my ($sep, $i, $k, $v, $tmp);
+   my ($sep, $i, $j, $k, $v, $tmp);
 
    $sep = $mode eq "req"?"Requested extensions:":"X509v3 extensions:";
 
@@ -143,7 +143,7 @@ sub parse_extensions {
       return(undef) if not defined($lines->[$i]);
    }
    $i++;
-
+   $j = "";
    while($i < @{$lines}) {
       if(($lines->[$i] =~ /^[\s\t]*[^:]+:\s*$/) ||
             ($lines->[$i] =~ /^[\s\t]*[^:]+:\s+.+$/)) {
@@ -154,6 +154,17 @@ sub parse_extensions {
          $k = $lines->[$i];
          $k =~ s/[\s\t:]*$//g;
          $k =~ s/^[\s\t]*//g;
+         if($k =~ /X509v3 CRL Distribution Points/i) {
+            $j = $k;
+            $i++;
+            next;
+         }
+         if(($k =~ /Full Name/i) && ($j =~ /X509v3 CRL Distribution Points/i)) {
+            $k = $j;
+            $j = "Full Name - ";
+         } else {
+            $j = "";
+         }
          $tmp->{$k} = [];
          $i++;
          while(($lines->[$i] !~ /^[\s\t].+:\s*$/) &&
@@ -170,7 +181,7 @@ sub parse_extensions {
             foreach(@vs) {
                $_ =~ s/^\s//;
                $_ =~ s/\s$//;
-               push(@{$tmp->{$k}}, $_);
+               push(@{$tmp->{$k}}, $j . $_);
             }
          }
       } else {
