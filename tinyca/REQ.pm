@@ -643,7 +643,7 @@ sub sign_req {
 sub get_import_req {
    my ($self, $main, $opts, $box) = @_;
 
-   my ($ret, $ext);
+   my ($ret, $ext, $der);
 
    $box->destroy() if(defined($box));
 
