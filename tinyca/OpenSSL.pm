@@ -267,7 +267,6 @@ sub revoke {
    $cmd .= " -passin env:SSLPASS";
 
    $cmd .= " -config $opts->{'config'}";
-   $cmd .= " -nameopt compat";
    $cmd .= " -revoke $opts->{'infile'}";
 
    if($opts->{'reason'} ne 'none') {
