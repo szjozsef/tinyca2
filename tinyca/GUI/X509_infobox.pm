@@ -18,6 +18,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 package GUI::X509_infobox;
 
 use HELPERS;
@@ -25,6 +26,8 @@ use GUI::HELPERS;
 use GUI::WORDS;
 
 use POSIX;
+use UI::Compat;           # Stage 7: shims HBox/VBox/Separator/ButtonBox/Table
+use I18N qw(_);           # Stage 12: formalised gettext wrapper
 
 my $version = "0.1";
 my $true = 1;
@@ -58,13 +61,13 @@ sub display {
 
   # if title is given create a surrounding frame with the title
   if (defined $title) {
-     $self->{'child'}= Gtk2::Frame->new($title);
-     $self->{'x509textbox'}= Gtk2::VBox->new(0,0);
+     $self->{'child'}= Gtk3::Frame->new($title);
+     $self->{'x509textbox'}= Gtk3::VBox->new(0,0);
      $self->{'child'}->add($self->{'x509textbox'});
   }
   # otherwise we create the VBox directly inside the root widget
   else {
-     $self->{'child'} = Gtk2::VBox->new(0,0);
+     $self->{'child'} = Gtk3::VBox->new(0,0);
      $self->{'x509textbox'} = $self->{'child'};
   }
 
@@ -121,7 +124,7 @@ sub display {
    if(defined($self->{$bottombox})) {
       $self->{$bottombox}->destroy();
    }
-   $self->{$bottombox} = Gtk2::HBox->new(1, 0);
+   $self->{$bottombox} = Gtk3::HBox->new(1, 0);
    $self->{$textbox}->pack_start($self->{$bottombox}, 1, 1, 5);
 
    # vbox in the bottom/left
@@ -132,11 +135,11 @@ sub display {
    $self->{$lefttable} = _create_detail_table(\@fields, $parsed);
 
    # the only widget i know to set shadow type :-(
-   $scrolled = Gtk2::ScrolledWindow->new();
+   $scrolled = Gtk3::ScrolledWindow->new();
    $scrolled->set_shadow_type('etched-in');
    $scrolled->set_policy('never', 'never');
 
-   $self->{$leftbox} = Gtk2::VBox->new(0, 0);
+   $self->{$leftbox} = Gtk3::VBox->new(0, 0);
    $self->{$bottombox}->pack_start($self->{$leftbox}, 1, 1, 0);
 
    $self->{$leftbox}->pack_start($scrolled, 1, 1, 0);
@@ -156,11 +159,11 @@ sub display {
 
    $self->{$righttable} = _create_detail_table(\@fields, $parsed);
 
-   $scrolled = Gtk2::ScrolledWindow->new();
+   $scrolled = Gtk3::ScrolledWindow->new();
    $scrolled->set_shadow_type('etched-in');
    $scrolled->set_policy('never', 'never');
 
-   $self->{$rightbox} = Gtk2::VBox->new(0, 0);
+   $self->{$rightbox} = Gtk3::VBox->new(0, 0);
    $self->{$bottombox}->pack_start($self->{$rightbox}, 1, 1, 0);
 
    $self->{$rightbox}->pack_start($scrolled, 1, 1, 0);
@@ -190,18 +193,18 @@ sub _create_detail_table {
 
    $words = GUI::WORDS->new();
 
-   $store = Gtk2::ListStore->new('Glib::String', 'Glib::String');
-   $list  = Gtk2::TreeView->new_with_model($store);
+   $store = Gtk3::ListStore->new('Glib::String', 'Glib::String');
+   $list  = Gtk3::TreeView->new_with_model($store);
    $list->set_headers_visible(0);
    $list->get_selection->set_mode('none');
 
-   $renderer = Gtk2::CellRendererText->new();
-   $column = Gtk2::TreeViewColumn->new_with_attributes(
+   $renderer = Gtk3::CellRendererText->new();
+   $column = Gtk3::TreeViewColumn->new_with_attributes(
          '', $renderer, 'text' => 0);
    $list->append_column($column);
 
-   $renderer = Gtk2::CellRendererText->new();
-   $column = Gtk2::TreeViewColumn->new_with_attributes(
+   $renderer = Gtk3::CellRendererText->new();
+   $column = Gtk3::TreeViewColumn->new_with_attributes(
          '', $renderer, 'text' => 1);
    $list->append_column($column);
 
@@ -231,7 +234,7 @@ __END__
 
 =head1 NAME
 
-GUI::X509_infobox - show X.509 certificates and requests in a Gtk2::VBox
+GUI::X509_infobox - show X.509 certificates and requests in a Gtk3::VBox
 
 =head1 SYNOPSIS
 
@@ -245,20 +248,20 @@ GUI::X509_infobox - show X.509 certificates and requests in a Gtk2::VBox
 =head1 DESCRIPTION
 
 This displays the information of an X.509v3 certificate or
-certification request (CSR) inside a given Gtk2::VBox.
+certification request (CSR) inside a given Gtk3::VBox.
 
 Creation of an X509_infobox is done by calling B<new()>,
 no arguments are required.
 
 The infobox is shown when inserted into an already
-existing Gtk2::VBox using the method B<update()>. Arguments
+existing Gtk3::VBox using the method B<update()>. Arguments
 to update are:
 
 =over 1
 
 =item $parent:
 
-the existing Gtk2::VBox inside which the info will be
+the existing Gtk3::VBox inside which the info will be
 displayed.
 
 =item $parsed:

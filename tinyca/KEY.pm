@@ -17,10 +17,13 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 
 package KEY;
 
 use POSIX;
+use UI;
+use I18N qw(_);
 
 sub new {
    my $self = {};
@@ -42,7 +45,7 @@ sub get_del_key {
    $key = $main->{'keybrowser'}->selection_dn();
 
    if(not defined $key) {
-      GUI::HELPERS::print_info(_("Please select a Key first"));
+      UI->info(_("Please select a Key first"));
       return;
    }
 
@@ -51,7 +54,7 @@ sub get_del_key {
    $keyfile = $main->{'cadir'}."/keys/".$keyname.".pem";
 
    if(not -s $keyfile) {
-      GUI::HELPERS::print_warning(_("Key file not found:".$keyfile));
+      UI->warning(_("Key file not found:".$keyfile));
       return;
    }
 
@@ -98,7 +101,7 @@ sub read_keylist {
    }
 
    opendir(DIR, $keydir) || do {
-      GUI::HELPERS::print_warning(_("Can't open key directory"));
+      UI->warning(_("Can't open key directory"));
       return(0);
    };
 
@@ -134,7 +137,7 @@ sub get_export_key {
       $cn = $main->{'keybrowser'}->selection_cn();
 
       if(not defined $cn) {
-         GUI::HELPERS::print_info(_("Please select a Key first"));
+         UI->info(_("Please select a Key first"));
          return;
       }
 
@@ -169,7 +172,7 @@ sub get_export_key {
 
    if((not defined($opts->{'outfile'})) || ($opts->{'outfile'} eq '')) {
       $main->show_export_dialog($opts, 'key');
-      GUI::HELPERS::print_warning(_("Please give at least the output file"));
+      UI->warning(_("Please give at least the output file"));
       return;
    }
 
@@ -192,10 +195,10 @@ sub get_export_key {
 
          if(defined($out) && $out eq 1) {
             $t = _("Wrong password given\nDecrypting of the Key failed\nExport is not possible");
-            GUI::HELPERS::print_warning($t, $ext);
+            UI->warning($t, $ext);
             return;
          } elsif((not defined($out)) || (length($out) < 3)) {
-            GUI::HELPERS::print_warning(
+            UI->warning(
                _("Converting failed, Export not possible"), $ext);
             return;
          }
@@ -205,7 +208,7 @@ sub get_export_key {
          open(IN, "<$opts->{'keyfile'}") || do {
             $t = sprintf(_("Can't open Key file: %s: %s"),
                   $opts->{'keyfile'}, $!);
-            GUI::HELPERS::print_warning($t);
+            UI->warning($t);
             return;
          };
          $out .= $_ while(<IN>);
@@ -215,7 +218,7 @@ sub get_export_key {
          open(IN, "<$opts->{'certfile'}") || do {
             $t = sprintf(_("Can't open Certificate file: %s: %s"),
                   $opts->{'certfile'}, $!);
-            GUI::HELPERS::print_warning($t);
+            UI->warning($t);
             return;
          };
          $out .= "\n";
@@ -226,7 +229,7 @@ sub get_export_key {
       open(OUT, ">$opts->{'outfile'}") || do {
             $t = sprintf(_("Can't open output file: %s: %s"),
                   $opts->{'outfile'}, $!);
-         GUI::HELPERS::print_warning($t);
+         UI->warning($t);
          return;
       };
 
@@ -238,7 +241,7 @@ sub get_export_key {
 
       $t = sprintf(_("Key succesfully exported to %s"),
             $opts->{'outfile'});
-      GUI::HELPERS::print_info($t);
+      UI->info($t);
       return;
 
    } elsif ($opts->{'format'} eq 'P12') {
@@ -255,7 +258,7 @@ sub get_export_key {
          $t = _("Certificate is necessary for export as PKCS#12");
          $t .= "\n";
          $t .= _("Export is not possible!");
-         GUI::HELPERS::print_warning($t);
+         UI->warning($t);
          return;
       }
 
@@ -282,7 +285,7 @@ sub get_export_key {
 
       if($ret eq 1) {
          $t = "Wrong password given\nDecrypting Key failed\nGenerating PKCS#12 failed";
-         GUI::HELPERS::print_warning($t, $ext);
+         UI->warning($t, $ext);
          return;
       } elsif($ret || (not -s $opts->{'outfile'})) {
          $t = _("Generating PKCS#12 failed");
@@ -294,7 +297,7 @@ sub get_export_key {
 
       $t = sprintf(_("Certificate and Key successfully exported to %s"),
             $opts->{'outfile'});
-      GUI::HELPERS::print_info($t, $ext);
+      UI->info($t, $ext);
       return;
 
    } elsif (($opts->{'format'} eq "ZIP") || ($opts->{'format'} eq "TAR")) {
@@ -306,7 +309,7 @@ sub get_export_key {
                $opts->{'format'});
          $t .= "\n";
          $t .= _("Export is not possible!");
-         GUI::HELPERS::print_warning($t);
+         UI->warning($t);
          return;
       }
 
@@ -318,7 +321,7 @@ sub get_export_key {
       my $tmpcacert = "$main->{'tmpdir'}/cacert.pem";
 
       open(OUT, ">$tmpcert") || do {
-         GUI::HELPERS::print_warning(_("Can't create temporary file"));
+         UI->warning(_("Can't create temporary file"));
          return;
       };
       print OUT $opts->{'parsed'}->{'PEM'};
@@ -327,14 +330,14 @@ sub get_export_key {
       # store key in temporary location
       {
       open(IN, "<$opts->{'keyfile'}") || do {
-         GUI::HELPERS::print_warning(_("Can't read Key file"));
+         UI->warning(_("Can't read Key file"));
          return;
       };
       my @key = <IN>;
       close IN;
 
       open(OUT, ">$tmpkey") || do {
-         GUI::HELPERS::print_warning(_("Can't create temporary file"));
+         UI->warning(_("Can't create temporary file"));
          return;
       };
       print OUT @key;
@@ -345,14 +348,14 @@ sub get_export_key {
       {
       $opts->{'cafile'} = $main->{'cadir'}."/cacert.pem";
       open(IN, "<$opts->{'cafile'}") || do {
-         GUI::HELPERS::print_warning(_("Can't read CA certificate"));
+         UI->warning(_("Can't read CA certificate"));
          return;
       };
       my @cacert = <IN>;
       close IN;
 
       open(OUT, ">$tmpcacert") || do {
-         GUI::HELPERS::print_warning(_("Can't create temporary file"));
+         UI->warning(_("Can't create temporary file"));
          return;
       };
       print OUT @cacert;
@@ -371,7 +374,7 @@ sub get_export_key {
       }
 
       if(not -s $opts->{'outfile'} || $ret) {
-         GUI::HELPERS::print_warning(
+         UI->warning(
                sprintf(_("Generating %s file failed"),
                   $opts->{'format'}));
       } else {
@@ -380,7 +383,7 @@ sub get_export_key {
          $t = sprintf(
                _("Certificate and Key successfully exported to %s"),
                $opts->{'outfile'});
-         GUI::HELPERS::print_info($t);
+         UI->info($t);
       }
       unlink($tmpcacert);
       unlink($tmpcert);
@@ -391,11 +394,11 @@ sub get_export_key {
    } else {
       $t = sprintf(_("Invalid format for export requested: %s"),
             $opts->{'format'});
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    }
 
-   GUI::HELPERS::print_warning(_("Something Failed ??"));
+   UI->warning(_("Something Failed ??"));
 
    return;
 }
@@ -409,7 +412,7 @@ sub _check_key {
    open(KEY, "<$file") || do {
       $t = sprintf(_("Can't open Key file: %s: %s"),
             $file, $!);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    };
 
@@ -447,7 +450,7 @@ sub key_change_passwd {
    open(KEY, "<$file") || do {
       $t = sprintf(_("Can't open Key file:\n%s"),
             $file);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return(1);
    };
    while(<KEY>) {
@@ -455,7 +458,11 @@ sub key_change_passwd {
          $inform = "PEM";
          $type   = "RSA";
          last;
-      } elsif(/BEGIN RSA PRIVATE KEY/){
+      } elsif(/BEGIN DSA PRIVATE KEY/){
+         # Stage 12 fix: this arm used to read /BEGIN RSA PRIVATE KEY/
+         # (duplicated regex), making it unreachable and forcing every
+         # DSA key into the UNKNOWN fall-through. DSA detection now
+         # works correctly.
          $inform = "PEM";
          $type   = "DSA";
          last;
@@ -464,7 +471,7 @@ sub key_change_passwd {
       }
    }
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    ($ret, $ext) = $main->{'OpenSSL'}->convkey(
       'type'      => $type,
@@ -476,7 +483,7 @@ sub key_change_passwd {
       'keyfile'   => $file
    );
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
    if($ret eq 1) {
       $t = _("Generating key failed");
@@ -484,7 +491,7 @@ sub key_change_passwd {
       if($ext =~ /unable to load Private Key/) {
          $t .= _("The password for your old CA Key is wrong");
       }
-      GUI::HELPERS::print_warning(($t), $ext);
+      UI->warning(($t), $ext);
       return($ret);
    }
 

@@ -17,13 +17,17 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 
 package OpenSSL;
 
 use POSIX;
 use IPC::Open3;
 use IO::Select;
+use Symbol qw(gensym);   # Stage 12: explicit import for the gensym call in _run_with_fixed_input
 use Time::Local;
+use UI;
+use I18N qw(_);
 
 sub new {
    my $self  = {};
@@ -32,7 +36,7 @@ sub new {
 
    $self->{'bin'} = $opensslbin;
    my $t = sprintf("Can't execute OpenSSL: %s", $self->{'bin'});
-   GUI::HELPERS::print_error($t)
+   UI->error($t)
       if (! -x $self->{'bin'});
 
    $self->{'tmp'}  = $tmpdir;
@@ -41,13 +45,21 @@ sub new {
    my $v = <TEST>;
    close(TEST);
 
-   # set version (format: e.g. 0.9.7 or 0.9.7a)
-   if($v =~ /\b(0\.9\.[6-9][a-z]?)\b/ || $v =~ /\b(1\.[01]?\.[0-2][a-z]?)\b/) {
+   # Capture any modern OpenSSL version string. Format examples:
+   #   "OpenSSL 0.9.7a 17 Oct 2008"
+   #   "OpenSSL 1.0.2u  20 Dec 2019"
+   #   "OpenSSL 1.1.1w  11 Sep 2023"
+   #   "OpenSSL 3.0.2 15 Mar 2022"
+   #   "OpenSSL 3.2.1 30 Jan 2024"
+   # Stage 12 fix: the previous regex matched only 0.9.x and 1.0/1.1/1.2.x,
+   # leaving $self->{version} undef on any OpenSSL >= 3.x.
+   if ($v =~ /\bOpenSSL\s+(\d+\.\d+\.\d+[a-z]?)\b/) {
       $self->{'version'} = $1;
    }
 
-   # CRL output was broken before openssl 0.9.7f
-   if($v =~ /\b0\.9\.[0-6][a-z]?\b/ || $v =~ /\b0\.9\.7[a-e]?\b/)  {
+   # CRL output was broken before openssl 0.9.7f. Everything from 0.9.7f
+   # onwards (including 1.x and 3.x) is fine.
+   if ($v =~ /\b0\.9\.[0-6][a-z]?\b/ || $v =~ /\b0\.9\.7[a-e]?\b/) {
       $self->{'broken'} = 1;
    } else {
       $self->{'broken'} = 0;
@@ -61,8 +73,11 @@ sub newkey {
    my $self = shift;
    my $opts = { @_ };
 
-   my ($cmd, $ext, $c, $i, $box, $bar, $t, $param, $pid, $ret);
+   my ($cmd, $ext, $box, $bar, $t, $param, $pid, $ret);
 
+   # DSA: first generate parameters via `dsaparam`, then generate the
+   # actual key via `gendsa` reading those parameters. RSA goes straight
+   # to `genrsa`.
    if(defined($opts->{'algo'}) && $opts->{'algo'} eq "dsa") {
       $param = HELPERS::mktmp($self->{'tmp'}."/param");
 
@@ -73,15 +88,14 @@ sub newkey {
       $ext = "$cmd\n\n";
       $pid = open3($wtfh, $rdfh, $rdfh, $cmd);
       $t = _("Creating DSA key in progress...");
-      ($box, $bar) = GUI::HELPERS::create_activity_bar($t);
-      $i = 0;
-      while(defined($c = getc($rdfh))) {
-         $ext .= $c;
-         $bar->pulse();
-         while(Gtk2->events_pending) {
-            Gtk2->main_iteration;
-         }
-      }
+      ($box, $bar) = UI->activity_bar($t);
+
+      # Stage 11: replace the legacy byte-by-byte getc + events_pending
+      # busy-loop with an async pump that uses Glib::IO->add_watch under
+      # a nested main loop in production, and a sync sysread fall-back
+      # in headless/test contexts.
+      $ext .= UI->pump_until_eof($rdfh, sub { $bar->pulse });
+
       $box->destroy();
       waitpid($pid, 0);
       $ret = $? >> 8;
@@ -107,16 +121,10 @@ sub newkey {
    $ext = "$cmd\n\n";
    $pid = open3($wtfh, $rdfh, $rdfh, $cmd);
    $t = _("Creating RSA key in progress...");
-   ($box, $bar) = GUI::HELPERS::create_activity_bar($t);
-   $i = 0;
-   while(defined($c = getc($rdfh))) {
-      $ext .= $c;
-#$bar->update(($i++%100)/100);
-      $bar->pulse();
-      while(Gtk2->events_pending) {
-         Gtk2->main_iteration;
-      }
-   }
+   ($box, $bar) = UI->activity_bar($t);
+
+   $ext .= UI->pump_until_eof($rdfh, sub { $bar->pulse });
+
    $box->destroy();
 
    waitpid($pid, 0);
@@ -479,7 +487,7 @@ sub parsecrl {
 
    open(IN, $file) || do {
       $t = sprintf(_("Can't open CRL '%s': %s"), $file, $!);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    };
 
@@ -494,7 +502,7 @@ sub parsecrl {
 
    if($ret) {
       $t = _("Error converting CRL");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       return;
    }
 
@@ -507,7 +515,7 @@ sub parsecrl {
 
    if($ret) {
       $t = _("Error converting CRL");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       return;
    }
 
@@ -555,7 +563,7 @@ sub parsecrl {
             push(@{$tmp->{'LIST'}}, $t);
          } else {
             $t = sprintf("CRL seems to be corrupt: %s\n", $file);
-            GUI::HELPERS::print_warning($t);
+            UI->warning($t);
             return;
          }
 
@@ -587,7 +595,7 @@ sub parsecert {
 
    open(IN, $file) || do {
       $t = sprintf("Can't open Certificate '%s': %s", $file, $!);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    };
 
@@ -602,7 +610,7 @@ sub parsecert {
 
    if($ret) {
       $t = _("Error converting Certificate");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       return;
    }
 
@@ -615,7 +623,7 @@ sub parsecert {
 
    if($ret) {
       $t = _("Error converting Certificate");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       return;
    }
 
@@ -683,7 +691,7 @@ sub parsecert {
 
    if($ret) {
       $t = _("Error reading fingerprint from Certificate");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
    }
 
    $cmd = "$self->{'bin'} x509 -noout -fingerprint -sha1 -in $file";
@@ -700,7 +708,7 @@ sub parsecert {
 
    if($ret) {
       $t = _("Error reading fingerprint from Certificate");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
    }
 
    $cmd = "$self->{'bin'} x509 -noout -fingerprint -sha256 -in $file";
@@ -741,7 +749,7 @@ sub parsecert {
 
    if($ret) {
       $t = _("Error reading fingerprint from Certificate");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
    }
 
    # get subject in openssl format
@@ -750,7 +758,10 @@ sub parsecert {
    $pid = open3($wtfh, $rdfh, $rdfh, $cmd);
    while(<$rdfh>){
       $ext .= $_;
-      if($_ =~ /subject= (.*)/) {
+      # Stage 12 fix: OpenSSL 1.1+ prints "subject=C = US, CN = foo" (no
+      # space after "="); 1.0.x and earlier printed "subject= /C=US/...".
+      # Accept either form, trim the captured value.
+      if ($_ =~ /^subject\s*=\s*(.+?)\s*$/i) {
          $tmp->{'SUBJECT'} = $1;
       }
    }
@@ -759,7 +770,7 @@ sub parsecert {
 
    if($ret) {
       $t = _("Error reading subject from Certificate");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
    }
 
    $tmp->{'EXPDATE'} = _get_date( $tmp->{'NOTAFTER'});
@@ -767,7 +778,7 @@ sub parsecert {
    if(defined($crlfile) && defined($indexfile)) {
       $crl = $self->parsecrl($crlfile, 1);
 
-      defined($crl) || GUI::HELPERS::print_error(_("Can't read CRL"));
+      defined($crl) || UI->error(_("Can't read CRL"));
 
       $tmp->{'STATUS'} = _("VALID");
 
@@ -812,7 +823,7 @@ sub parsereq {
 
    open(IN, $file) || do {
       $t = sprintf(_("Can't open Request file %s: %s"), $file, $!);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    };
 
@@ -829,7 +840,7 @@ sub parsereq {
 
    if($ret) {
       $t = _("Error converting Request");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       return;
    }
 
@@ -843,7 +854,7 @@ sub parsereq {
 
    if($ret) {
       $t = _("Error converting Request");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       return;
    }
 
@@ -919,7 +930,7 @@ sub convdata {
    if (-s $file) { # If the file is empty, the payload is in $tmp (via STDOUT of the called process).
       open(IN, $file) || do {
          my $t = sprintf(_("Can't open file %s: %s"), $file, $!);
-         GUI::HELPERS::print_warning($t);
+         UI->warning($t);
          return;
       };
       $tmp .= $_ while(<IN>);
@@ -1035,7 +1046,7 @@ sub read_index {
 
    open(IN, "<$index") || do {
       my $t = sprintf(_("Can't read index %s: %s"), $index, $!);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    };
    @lines = <IN>;
@@ -1067,7 +1078,7 @@ sub _set_expired {
 
    open(IN, "<$index") || do {
       my $t = sprintf(_("Can't read index %s: %s"), $index, $!);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    };
 
@@ -1077,7 +1088,7 @@ sub _set_expired {
 
    open(OUT, ">$index") || do {
       my $t = sprintf(_("Can't write index %s: %s"), $index, $!);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    };
 

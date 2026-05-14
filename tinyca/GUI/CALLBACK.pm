@@ -17,6 +17,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 package GUI::CALLBACK;
 
 use POSIX;

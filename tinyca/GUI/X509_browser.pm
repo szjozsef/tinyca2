@@ -18,6 +18,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 package GUI::X509_browser;
 
 use HELPERS;
@@ -25,6 +26,8 @@ use GUI::HELPERS;
 use GUI::X509_infobox;
 
 use POSIX;
+use UI::Compat;           # Stage 7: shims HBox/VBox/Separator/ButtonBox/Table
+use I18N qw(_);           # Stage 12: formalised gettext wrapper
 
 my $tmpdefault="/tmp";
 
@@ -39,8 +42,6 @@ sub new {
    $self->{'main'} = shift;
    my $mode = shift;
 
-   my ($font, $fontfix);
-
    my $class = ref($that) || $that;
 
 
@@ -52,26 +53,15 @@ sub new {
       return undef;
    }
 
-   # initialize fonts and styles
-   $font    = Gtk2::Pango::FontDescription->from_string(
-         "-adobe-helvetica-bold-r-normal--*-120-*-*-*-*-*-*");
-   if(defined($font)) {
-      $self->{'stylebold'} = Gtk2::Style->new();
-      $self->{'stylebold'}->font_desc->from_string(
-            "-adobe-helvetica-bold-r-normal--*-120-*-*-*-*-*-*");
-   } else {
-      $self->{'stylebold'} = undef;
-   }
-
-   $fontfix = Gtk2::Pango::FontDescription->from_string(
-         "-adobe-courier-medium-r-normal--*-100-*-*-*-*-*-*");
-   if(defined($fontfix)) {
-      $self->{'stylefix'} = Gtk2::Style->new();
-      $self->{'stylefix'}->font_desc->from_string(
-            "-adobe-courier-medium-r-normal--*-100-*-*-*-*-*-*");
-   } else {
-      $self->{'stylefix'} = undef;
-   }
+   # Stage 10: removed dead-code initialisation of $self->{stylebold} and
+   # $self->{stylefix}. The original code created Gtk2::Style objects
+   # using XLFD font strings ("-adobe-helvetica-*") that don't resolve on
+   # modern fontconfig systems, then stored them on $self without ever
+   # applying them to any widget. Gtk3 removed Gtk2::Style entirely
+   # (replaced by Gtk3::StyleContext / CSS), so these lines also no
+   # longer compile-load. They are deleted; if a later stage needs bold
+   # or monospace fonts in the browser, use Pango attribute lists or a
+   # CSS provider on the relevant widget.
 
    bless($self, $class);
 
@@ -132,17 +122,17 @@ sub add_list {
       $self->{'x509box'}->destroy();
    }
 
-   $self->{'x509box'} = Gtk2::VBox->new(0, 0);
+   $self->{'x509box'} = Gtk3::VBox->new(0, 0);
 
    # pane for list (top) and cert infos (bottom)
-   $self->{'x509pane'} = Gtk2::VPaned->new();
+   $self->{'x509pane'} = Gtk3::VPaned->new();
    $self->{'x509pane'}->set_position(250);
    $self->{'x509box'}->add($self->{'x509pane'});
 
    $self->{'browser'}->pack_start($self->{'x509box'}, 1, 1, 0);
 
    # now the list
-   $x509listwin = Gtk2::ScrolledWindow->new(undef, undef);
+   $x509listwin = Gtk3::ScrolledWindow->new(undef, undef);
    $x509listwin->set_policy('automatic', 'automatic');
    $x509listwin->set_shadow_type('etched-in');
    $self->{'x509pane'}->pack1($x509listwin, 1, 1);
@@ -150,7 +140,7 @@ sub add_list {
    # shall we display certificates, requests or keys?
    if ((defined $self->{'mode'}) && ($self->{'mode'} eq "cert")) {
 
-      $self->{'x509store'} = Gtk2::ListStore->new(
+      $self->{'x509store'} = Gtk3::ListStore->new(
         'Glib::String',
         'Glib::String',
         'Glib::String',
@@ -165,7 +155,7 @@ sub add_list {
 
    } elsif ((defined $self->{'mode'}) && ($self->{'mode'} eq "req")) {
 
-      $self->{'x509store'} = Gtk2::ListStore->new(
+      $self->{'x509store'} = Gtk3::ListStore->new(
         'Glib::String',
         'Glib::String',
         'Glib::String',
@@ -179,7 +169,7 @@ sub add_list {
 
    } elsif ((defined $self->{'mode'}) && ($self->{'mode'} eq "key")) {
 
-      $self->{'x509store'} = Gtk2::ListStore->new(
+      $self->{'x509store'} = Gtk3::ListStore->new(
         'Glib::String',
         'Glib::String',
         'Glib::String',
@@ -199,12 +189,12 @@ sub add_list {
 
    $self->{'x509store'}->set_sort_column_id(0, 'ascending');
 
-   $self->{'x509clist'} = Gtk2::TreeView->new_with_model($self->{'x509store'});
+   $self->{'x509clist'} = Gtk3::TreeView->new_with_model($self->{'x509store'});
    $self->{'x509clist'}->get_selection->set_mode ('single');
 
    for(my $i = 0; $titles[$i]; $i++) {
-      $renderer = Gtk2::CellRendererText->new();
-      $column = Gtk2::TreeViewColumn->new_with_attributes(
+      $renderer = Gtk3::CellRendererText->new();
+      $column = Gtk3::TreeViewColumn->new_with_attributes(
             $titles[$i], $renderer, 'text' => $i);
       $column->set_sort_column_id($i);
       $column->set_resizable(1);
@@ -287,7 +277,7 @@ sub update_req {
     }
      # now select the first row to display certificate informations
      $self->{'x509clist'}->get_selection->select_path(
-           Gtk2::TreePath->new_first());
+           Gtk3::TreePath->new_first());
 
 }
 
@@ -321,7 +311,7 @@ sub update_cert {
      }
      # now select the first row to display certificate informations
      $self->{'x509clist'}->get_selection->select_path(
-           Gtk2::TreePath->new_first());
+           Gtk3::TreePath->new_first());
 }
 
 sub update_key {
@@ -377,7 +367,7 @@ sub update_info {
           GUI::HELPERS::print_error(_("Can't read file"));
 
        if(not defined($self->{'infobox'})) {
-          $self->{'infobox'} = Gtk2::VBox->new();
+          $self->{'infobox'} = Gtk3::VBox->new();
        }
 
        $self->{'infowin'}->display($self->{'infobox'}, $parsed,
@@ -431,7 +421,7 @@ sub add_info {
 
     defined($parsed) || GUI::HELPERS::print_error(_("Can't read file"));
 
-    $self->{'infobox'} = Gtk2::VBox->new();
+    $self->{'infobox'} = Gtk3::VBox->new();
     $self->{'x509pane'}->pack2($self->{'infobox'}, 1, 1);
     $self->{'infowin'}->display($self->{'infobox'}, $parsed, $self->{'mode'},
           $title);
@@ -724,7 +714,7 @@ __END__
 
 =head1 NAME
 
-GUI::X509_browser - Perl-Gtk2 browser for X.509 certificates and requests
+GUI::X509_browser - Perl-Gtk3 browser for X.509 certificates and requests
 
 =head1 SYNOPSIS
 
@@ -757,7 +747,7 @@ all arguments are optional.
 
 =item $title:
 
-the existing Gtk2::VBox inside which the info will be
+the existing Gtk3::VBox inside which the info will be
 displayed.
 
 =item $oktext:

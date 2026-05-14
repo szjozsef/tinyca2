@@ -17,7 +17,10 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 package GUI::WORDS;
+
+use I18N qw(_);           # Stage 12: formalised gettext wrapper
 
 sub new {
    my $that = shift;

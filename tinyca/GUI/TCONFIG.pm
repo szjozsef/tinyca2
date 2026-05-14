@@ -17,9 +17,13 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 package GUI::TCONFIG;
 
 use POSIX;
+use UI::Stock;            # Stage 6: shims `new_from_stock` to themed icons
+use UI::Compat;           # Stage 7: shims HBox/VBox/Separator/ButtonBox/Table
+use I18N qw(_);           # Stage 12: formalised gettext wrapper
 
 #
 # main screen for configuration
@@ -50,35 +54,35 @@ sub show_configbox {
 
    $main->{'TCONFIG'}->init_config($main, $name);
 
-   $box = Gtk2::Window->new("toplevel");
+   $box = Gtk3::Window->new("toplevel");
    $box->set_title("OpenSSL Configuration");
    $box->set_resizable(1);
    $box->set_default_size(800, 600);
    $box->signal_connect('delete_event' => sub { $box->destroy() });
 
-   $box->{'button_ok'} = Gtk2::Button->new_from_stock('gtk-ok');
+   $box->{'button_ok'} = Gtk3::Button->new_from_stock('gtk-ok');
    $box->{'button_ok'}->set_sensitive(0);
    $box->{'button_ok'}->signal_connect('clicked' =>
       sub { $main->{'TCONFIG'}->write_config($main, $name);
             $box->destroy() });
 
 
-   $box->{'button_apply'} = Gtk2::Button->new_from_stock('gtk-apply');
+   $box->{'button_apply'} = Gtk3::Button->new_from_stock('gtk-apply');
    $box->{'button_apply'}->set_sensitive(0);
    $box->{'button_apply'}->signal_connect('clicked' =>
       sub { $main->{'TCONFIG'}->write_config($main, $name) });
 
-   $button_cancel = Gtk2::Button->new_from_stock('gtk-cancel');
+   $button_cancel = Gtk3::Button->new_from_stock('gtk-cancel');
    $button_cancel->signal_connect( 'clicked' => sub { $box->destroy() });
 
    $t = _("All Settings are written unchanged to openssl.conf.\nSo please study the documentation of OpenSSL if you don't know exactly what to do.\nIf you are still unsure - keep the defaults and everything is expected to work fine.");
-   $button_help = Gtk2::Button->new_from_stock('gtk-help');
+   $button_help = Gtk3::Button->new_from_stock('gtk-help');
    $button_help->signal_connect('clicked' =>
       sub { GUI::HELPERS::print_info($t) });
 
-   $box->{'vbox'} = Gtk2::VBox->new();
+   $box->{'vbox'} = Gtk3::VBox->new();
 
-   $box->{'nb'} = Gtk2::Notebook->new();
+   $box->{'nb'} = Gtk3::Notebook->new();
    $box->{'nb'}->set_tab_pos('top');
    $box->{'nb'}->set_show_tabs(1);
    $box->{'nb'}->set_show_border(1);
@@ -88,7 +92,7 @@ sub show_configbox {
 
    $box->{'vbox'}->pack_start($box->{'nb'}, 1, 1, 0);
 
-   $buttonbox = Gtk2::HButtonBox->new();
+   $buttonbox = Gtk3::HButtonBox->new();
    $buttonbox->set_layout('end');
    $buttonbox->set_spacing(3);
    $buttonbox->set_border_width(3);
@@ -102,7 +106,7 @@ sub show_configbox {
    $box->{'vbox'}->pack_start($buttonbox, 0, 0, 0);
 
    # first page: vbox with warnings :-)
-   $vbox = Gtk2::VBox->new(0, 0);
+   $vbox = Gtk3::VBox->new(0, 0);
 
    $label = GUI::HELPERS::create_label(
          _("OpenSSL Configuration"), 'center', 0,0);
@@ -119,7 +123,7 @@ sub show_configbox {
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
 
-   $separator = Gtk2::HSeparator->new();
+   $separator = Gtk3::HSeparator->new();
    $vbox->pack_start($separator, 0, 0, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
@@ -173,7 +177,7 @@ sub show_configbox {
    @options_ca = qw(
          default_days
          );
-   $vbox = Gtk2::VBox->new(0, 0);
+   $vbox = Gtk3::VBox->new(0, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
@@ -191,14 +195,14 @@ sub show_configbox {
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
 
-   $separator = Gtk2::HSeparator->new();
+   $separator = Gtk3::HSeparator->new();
    $vbox->pack_start($separator, 0, 0, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
 
    $rows = 1;
-   $table = Gtk2::Table->new($rows, 2, 0);
+   $table = Gtk3::Table->new($rows, 2, 0);
    $vbox->pack_start($table, 1, 1, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
@@ -206,7 +210,7 @@ sub show_configbox {
 
    $label = GUI::HELPERS::create_label(_("Server Certificate Settings"),
          'center', 0, 0);
-   $label = Gtk2::Label->new(_("Server Certificate Settings"));
+   $label = Gtk3::Label->new(_("Server Certificate Settings"));
 
    $box->{'nb'}->append_page($vbox, $label);
 
@@ -215,8 +219,8 @@ sub show_configbox {
          _("Subject alternative name (subjectAltName):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $main->{'radiobox'} = Gtk2::HBox->new(0, 0);
-   $main->{'radio1'} = Gtk2::RadioButton->new(
+   $main->{'radiobox'} = Gtk3::HBox->new(0, 0);
+   $main->{'radio1'} = Gtk3::RadioButton->new(
          undef, _($main->{'words'}{'ip'}));
    $main->{'radio1'}->signal_connect('toggled' =>
         sub {GUI::CALLBACK::toggle_to_var_pref($main->{'radio1'},
@@ -225,7 +229,7 @@ sub show_configbox {
 
    $main->{'radiobox'}->add($main->{'radio1'});
 
-   $main->{'radio2'} = Gtk2::RadioButton->new(
+   $main->{'radio2'} = Gtk3::RadioButton->new(
          $main->{'radio1'}, _($main->{'words'}{'dns'}));
    $main->{'radio2'}->signal_connect('toggled' =>
         sub {GUI::CALLBACK::toggle_to_var_pref($main->{'radio2'},
@@ -234,7 +238,7 @@ sub show_configbox {
 
    $main->{'radiobox'}->add($main->{'radio2'});
 
-   $main->{'radio3'} = Gtk2::RadioButton->new($main->{'radio1'},
+   $main->{'radio3'} = Gtk3::RadioButton->new($main->{'radio1'},
          _($main->{'words'}{'raw'}));
 
    $main->{'radio3'}->signal_connect('toggled' =>
@@ -255,7 +259,7 @@ sub show_configbox {
       $main->{'radio3'}->set_active(1)
    }
 
-   $combosubjectAltName = Gtk2::Combo->new();
+   $combosubjectAltName = Gtk3::Combo->new();
    @combostrings = (
          $main->{'words'}{'none'},
          $main->{'words'}{'user'},
@@ -312,9 +316,9 @@ sub show_configbox {
          _("Key Usage (keyUsage):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $main->{'radiobox'} = Gtk2::HBox->new(0, 0);
+   $main->{'radiobox'} = Gtk3::HBox->new(0, 0);
 
-   $main->{'radio1'} = Gtk2::RadioButton->new(undef,
+   $main->{'radio1'} = Gtk3::RadioButton->new(undef,
          _($main->{'words'}{'critical'}));
    if($main->{'TCONFIG'}->{'server_cert'}->{'keyUsageType'} eq 'critical') {
       $main->{'radio1'}->set_active(1)
@@ -326,7 +330,7 @@ sub show_configbox {
 
    $main->{'radiobox'}->add($main->{'radio1'});
 
-   $main->{'radio2'} = Gtk2::RadioButton->new($main->{'radio1'},
+   $main->{'radio2'} = Gtk3::RadioButton->new($main->{'radio1'},
          _($main->{'words'}{'noncritical'}));
    if($main->{'TCONFIG'}->{'server_cert'}->{'keyUsageType'} eq 'noncritical') {
       $main->{'radio2'}->set_active(1)
@@ -338,7 +342,7 @@ sub show_configbox {
 
    $main->{'radiobox'}->add($main->{'radio2'});
 
-   $combokeyUsage = Gtk2::Combo->new();
+   $combokeyUsage = Gtk3::Combo->new();
    @combostrings = (
          $main->{'words'}{'none'},
          $main->{'words'}{'sig'},
@@ -391,8 +395,8 @@ sub show_configbox {
          _("Extended Key Usage (extendedKeyUsage):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $main->{'radiobox'} = Gtk2::HBox->new(0, 0);
-   $main->{'radio1'} = Gtk2::RadioButton->new(undef,
+   $main->{'radiobox'} = Gtk3::HBox->new(0, 0);
+   $main->{'radio1'} = Gtk3::RadioButton->new(undef,
          _($main->{'words'}{'critical'}));
    if($main->{'TCONFIG'}->{'server_cert'}->{'extendedKeyUsageType'} eq 'critical') {
       $main->{'radio1'}->set_active(1)
@@ -403,7 +407,7 @@ sub show_configbox {
             'critical', $box)});
    $main->{'radiobox'}->add($main->{'radio1'});
 
-   $main->{'radio2'} = Gtk2::RadioButton->new($main->{'radio1'},
+   $main->{'radio2'} = Gtk3::RadioButton->new($main->{'radio1'},
          _($main->{'words'}{'noncritical'}));
    if($main->{'TCONFIG'}->{'server_cert'}->{'extendedKeyUsageType'} eq 'noncritical') {
       $main->{'radio2'}->set_active(1)
@@ -414,7 +418,7 @@ sub show_configbox {
             'noncritical', $box)});
    $main->{'radiobox'}->add($main->{'radio2'});
 
-   $comboextendedKeyUsage = Gtk2::Combo->new();
+   $comboextendedKeyUsage = Gtk3::Combo->new();
    @combostrings = (
          $main->{'words'}{'none'},
          $main->{'words'}{'user'});
@@ -467,7 +471,7 @@ sub show_configbox {
          _("Netscape Certificate Type (nsCertType):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combonsCertType = Gtk2::Combo->new();
+   $combonsCertType = Gtk3::Combo->new();
    @combostrings = (
          $main->{'words'}{'none'},
          $main->{'words'}{'server'},
@@ -496,7 +500,7 @@ sub show_configbox {
          _("Netscape SSL Server Name (nsSslServerName):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combonsSslServer = Gtk2::Combo->new();
+   $combonsSslServer = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'}, $main->{'words'}{'user'});
    $combonsSslServer->set_popdown_strings(@combostrings);
    $combonsSslServer->set_use_arrows(1);
@@ -521,7 +525,7 @@ sub show_configbox {
          _("Netscape Revocation URL (nsRevocationUrl):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combonsRevocationUrl = Gtk2::Combo->new();
+   $combonsRevocationUrl = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'}, $main->{'words'}{'user'});
    $combonsRevocationUrl->set_popdown_strings(@combostrings);
    $combonsRevocationUrl->set_use_arrows(1);
@@ -546,7 +550,7 @@ sub show_configbox {
          _("Netscape Renewal URL (nsRenewalUrl):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combonsRenewalUrl = Gtk2::Combo->new();
+   $combonsRenewalUrl = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'}, $main->{'words'}{'user'});
    $combonsRenewalUrl->set_popdown_strings(@combostrings);
    $combonsRenewalUrl->set_use_arrows(1);
@@ -598,7 +602,7 @@ sub show_configbox {
    @options_ca = qw(
          default_days
          );
-   $vbox = Gtk2::VBox->new(0, 0);
+   $vbox = Gtk3::VBox->new(0, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
@@ -616,14 +620,14 @@ sub show_configbox {
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
 
-   $separator = Gtk2::HSeparator->new();
+   $separator = Gtk3::HSeparator->new();
    $vbox->pack_start($separator, 0, 0, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
 
    $rows = 1;
-   $table = Gtk2::Table->new($rows, 2, 0);
+   $table = Gtk3::Table->new($rows, 2, 0);
    $vbox->pack_start($table, 1, 1, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
@@ -638,8 +642,8 @@ sub show_configbox {
          _("Subject alternative name (subjectAltName):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $main->{'radiobox'} = Gtk2::HBox->new(0, 0);
-   $main->{'radio1'} = Gtk2::RadioButton->new(undef,
+   $main->{'radiobox'} = Gtk3::HBox->new(0, 0);
+   $main->{'radio1'} = Gtk3::RadioButton->new(undef,
          _($main->{'words'}{'ip'}));
    $main->{'radio1'}->signal_connect('toggled' =>
          sub { GUI::CALLBACK::toggle_to_var_pref($main->{'radio1'},
@@ -647,7 +651,7 @@ sub show_configbox {
             'ip', $box) });
    $main->{'radiobox'}->add($main->{'radio1'});
 
-   $main->{'radio2'} = Gtk2::RadioButton->new($main->{'radio1'},
+   $main->{'radio2'} = Gtk3::RadioButton->new($main->{'radio1'},
          _($main->{'words'}{'dns'}));
    $main->{'radio2'}->signal_connect('toggled' =>
          sub { GUI::CALLBACK::toggle_to_var_pref($main->{'radio2'},
@@ -655,7 +659,7 @@ sub show_configbox {
             'dns', $box) });
    $main->{'radiobox'}->add($main->{'radio2'});
 
-   $main->{'radio3'} = Gtk2::RadioButton->new($main->{'radio1'},
+   $main->{'radio3'} = Gtk3::RadioButton->new($main->{'radio1'},
          _($main->{'words'}{'mail'}));
    $main->{'radio3'}->signal_connect('toggled' =>
          sub { GUI::CALLBACK::toggle_to_var_pref($main->{'radio3'},
@@ -663,7 +667,7 @@ sub show_configbox {
             'mail', $box) });
    $main->{'radiobox'}->add($main->{'radio3'});
 
-   $main->{'radio4'} = Gtk2::RadioButton->new($main->{'radio1'},
+   $main->{'radio4'} = Gtk3::RadioButton->new($main->{'radio1'},
          _($main->{'words'}{'raw'}));
    $main->{'radio4'}->signal_connect('toggled' =>
          sub { GUI::CALLBACK::toggle_to_var_pref($main->{'radio4'},
@@ -685,7 +689,7 @@ sub show_configbox {
       $main->{'radio4'}->set_active(1)
    }
 
-   $combocsubjectAltName = Gtk2::Combo->new();
+   $combocsubjectAltName = Gtk3::Combo->new();
    @combostrings = (
          $main->{'words'}{'none'},
          $main->{'words'}{'user'},
@@ -744,8 +748,8 @@ sub show_configbox {
          _("Key Usage (keyUsage):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $main->{'radiobox'} = Gtk2::HBox->new(0, 0);
-   $main->{'radio1'} = Gtk2::RadioButton->new(undef,
+   $main->{'radiobox'} = Gtk3::HBox->new(0, 0);
+   $main->{'radio1'} = Gtk3::RadioButton->new(undef,
          _($main->{'words'}{'critical'}));
    if($main->{'TCONFIG'}->{'client_cert'}->{'keyUsageType'} eq 'critical') {
       $main->{'radio1'}->set_active(1)
@@ -756,7 +760,7 @@ sub show_configbox {
             'critical', $box) });
    $main->{'radiobox'}->add($main->{'radio1'});
 
-   $main->{'radio2'} = Gtk2::RadioButton->new($main->{'radio1'},
+   $main->{'radio2'} = Gtk3::RadioButton->new($main->{'radio1'},
          _($main->{'words'}{'noncritical'}));
    if($main->{'TCONFIG'}->{'client_cert'}->{'keyUsageType'} eq 'noncritical') {
       $main->{'radio2'}->set_active(1)
@@ -767,7 +771,7 @@ sub show_configbox {
             'noncritical', $box) });
    $main->{'radiobox'}->add($main->{'radio2'});
 
-   $combockeyUsage = Gtk2::Combo->new();
+   $combockeyUsage = Gtk3::Combo->new();
    @combostrings = (
          $main->{'words'}{'none'},
          $main->{'words'}{'sig'},
@@ -819,8 +823,8 @@ sub show_configbox {
          _("Extended Key Usage (extendedKeyUsage):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $main->{'radiobox'} = Gtk2::HBox->new(0, 0);
-   $main->{'radio1'} = Gtk2::RadioButton->new(undef,
+   $main->{'radiobox'} = Gtk3::HBox->new(0, 0);
+   $main->{'radio1'} = Gtk3::RadioButton->new(undef,
          _($main->{'words'}{'critical'}));
    if($main->{'TCONFIG'}->{'client_cert'}->{'extendedKeyUsageType'} eq 'critical') {
       $main->{'radio1'}->set_active(1)
@@ -831,7 +835,7 @@ sub show_configbox {
             'critical', $box) });
    $main->{'radiobox'}->add($main->{'radio1'});
 
-   $main->{'radio2'} = Gtk2::RadioButton->new($main->{'radio1'},
+   $main->{'radio2'} = Gtk3::RadioButton->new($main->{'radio1'},
          _($main->{'words'}{'noncritical'}));
    if($main->{'TCONFIG'}->{'client_cert'}->{'extendedKeyUsageType'} eq 'noncritical') {
       $main->{'radio2'}->set_active(1)
@@ -842,7 +846,7 @@ sub show_configbox {
             'noncritical', $box) });
    $main->{'radiobox'}->add($main->{'radio2'});
 
-   $combocextendedKeyUsage = Gtk2::Combo->new();
+   $combocextendedKeyUsage = Gtk3::Combo->new();
    @combostrings = (
          $main->{'words'}{'none'},
          $main->{'words'}{'user'});
@@ -894,7 +898,7 @@ sub show_configbox {
          _("Netscape Certificate Type (nsCertType):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combocnsCertType = Gtk2::Combo->new();
+   $combocnsCertType = Gtk3::Combo->new();
    @combostrings = (
          $main->{'words'}{'none'},
          $main->{'words'}{'objsign'},
@@ -924,7 +928,7 @@ sub show_configbox {
          _("Netscape Revocation URL (nsRevocationUrl):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combocnsRevocationUrl = Gtk2::Combo->new();
+   $combocnsRevocationUrl = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'}, $main->{'words'}{'user'});
    $combocnsRevocationUrl->set_popdown_strings(@combostrings);
    $combocnsRevocationUrl->set_use_arrows(1);
@@ -948,7 +952,7 @@ sub show_configbox {
          _("Netscape Renewal URL (nsRenewalUrl):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combocnsRenewalUrl = Gtk2::Combo->new();
+   $combocnsRenewalUrl = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'}, $main->{'words'}{'user'});
    $combocnsRenewalUrl->set_popdown_strings(@combostrings);
    $combocnsRenewalUrl->set_use_arrows(1);
@@ -1005,7 +1009,7 @@ sub show_configbox {
    @options_ca = qw(
          default_days
          );
-   $vbox = Gtk2::VBox->new(0, 0);
+   $vbox = Gtk3::VBox->new(0, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
@@ -1023,14 +1027,14 @@ sub show_configbox {
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
 
-   $separator = Gtk2::HSeparator->new();
+   $separator = Gtk3::HSeparator->new();
    $vbox->pack_start($separator, 0, 0, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
 
    $rows = 1;
-   $table = Gtk2::Table->new($rows, 2, 0);
+   $table = Gtk3::Table->new($rows, 2, 0);
    $vbox->pack_start($table, 1, 1, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
@@ -1038,7 +1042,7 @@ sub show_configbox {
 
    $label = GUI::HELPERS::create_label(_("CA Certificate Settings"),
          'center', 0, 0);
-   $label = Gtk2::Label->new(_("CA Certificate Settings"));
+   $label = Gtk3::Label->new(_("CA Certificate Settings"));
 
    $box->{'nb'}->append_page($vbox, $label);
 
@@ -1047,7 +1051,7 @@ sub show_configbox {
          _("Subject alternative name (subjectAltName):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combocasubjectAltName = Gtk2::Combo->new();
+   $combocasubjectAltName = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'}, $main->{'words'}{'emailcopy'});
    $combocasubjectAltName->set_popdown_strings(@combostrings);
    $combocasubjectAltName->set_use_arrows(1);
@@ -1076,7 +1080,7 @@ sub show_configbox {
          _("Netscape Certificate Type (nsCertType):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combocansCertType = Gtk2::Combo->new();
+   $combocansCertType = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'},
                     $main->{'words'}{'emailCA'},
                     $main->{'words'}{'sslCA'},
@@ -1107,8 +1111,8 @@ sub show_configbox {
          _("Key Usage (keyUsage):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $main->{'radiobox'} = Gtk2::HBox->new(0, 0);
-   $main->{'radio1'} = Gtk2::RadioButton->new(undef,
+   $main->{'radiobox'} = Gtk3::HBox->new(0, 0);
+   $main->{'radio1'} = Gtk3::RadioButton->new(undef,
          _($main->{'words'}{'critical'}));
    if($main->{'TCONFIG'}->{'v3_ca'}->{'keyUsageType'} eq 'critical') {
       $main->{'radio1'}->set_active(1)
@@ -1119,7 +1123,7 @@ sub show_configbox {
             $box) });
    $main->{'radiobox'}->add($main->{'radio1'});
 
-   $main->{'radio2'} = Gtk2::RadioButton->new($main->{'radio1'},
+   $main->{'radio2'} = Gtk3::RadioButton->new($main->{'radio1'},
          _($main->{'words'}{'noncritical'}));
    if($main->{'TCONFIG'}->{'v3_ca'}->{'keyUsageType'} eq 'noncritical') {
       $main->{'radio2'}->set_active(1)
@@ -1130,7 +1134,7 @@ sub show_configbox {
             $box) });
    $main->{'radiobox'}->add($main->{'radio2'});
 
-   $combocakeyUsage = Gtk2::Combo->new();
+   $combocakeyUsage = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'},
                     $main->{'words'}{'keyCertSign'},
                     $main->{'words'}{'cRLSign'},
@@ -1182,7 +1186,7 @@ sub show_configbox {
          _("Netscape Revocation URL (nsRevocationUrl):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combocansRevocationUrl = Gtk2::Combo->new();
+   $combocansRevocationUrl = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'}, $main->{'words'}{'user'});
    $combocansRevocationUrl->set_popdown_strings(@combostrings);
    $combocansRevocationUrl->set_use_arrows(1);
@@ -1225,7 +1229,7 @@ sub show_configbox {
          default_crl_days
          );
 
-   $vbox = Gtk2::VBox->new(0, 0);
+   $vbox = Gtk3::VBox->new(0, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
@@ -1243,14 +1247,14 @@ sub show_configbox {
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
 
-   $separator = Gtk2::HSeparator->new();
+   $separator = Gtk3::HSeparator->new();
    $vbox->pack_start($separator, 0, 0, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
    $vbox->pack_start($label, 0, 0, 0);
 
    $rows = 1;
-   $table = Gtk2::Table->new($rows, 2, 0);
+   $table = Gtk3::Table->new($rows, 2, 0);
    $vbox->pack_start($table, 0, 0, 0);
 
    $label = GUI::HELPERS::create_label(' ', 'center', 0, 0);
@@ -1305,7 +1309,7 @@ sub show_config_ca {
 
    $main->{'TCONFIG'}->init_config($main, $opts->{'name'});
 
-   $button_ok = Gtk2::Button->new_from_stock('gtk-ok');
+   $button_ok = Gtk3::Button->new_from_stock('gtk-ok');
    $button_ok->can_default(1);
 
    $button_ok->signal_connect('clicked',
@@ -1315,7 +1319,7 @@ sub show_config_ca {
             $main->{'CA'}->create_ca($main, $opts, $box, $mode) });
 
 
-   $button_cancel = Gtk2::Button->new_from_stock('gtk-cancel');
+   $button_cancel = Gtk3::Button->new_from_stock('gtk-cancel');
    $button_cancel->signal_connect('clicked', sub { $box->destroy() });
 
    $box = GUI::HELPERS::dialog_box(
@@ -1350,7 +1354,7 @@ sub show_config_ca {
    $box->vbox->pack_start($label, 0, 0, 0);
 
    $rows = 1;
-   $table = Gtk2::Table->new($rows, 2, 0);
+   $table = Gtk3::Table->new($rows, 2, 0);
    $box->vbox->add($table);
 
    # special option keyUsage
@@ -1358,8 +1362,8 @@ sub show_config_ca {
          _("Key Usage (keyUsage):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $main->{'radiobox'} = Gtk2::HBox->new(0, 0);
-   $main->{'radio1'} = Gtk2::RadioButton->new(undef,
+   $main->{'radiobox'} = Gtk3::HBox->new(0, 0);
+   $main->{'radio1'} = Gtk3::RadioButton->new(undef,
          _($main->{'words'}{'critical'}));
    if($main->{'TCONFIG'}->{'v3_ca'}->{'keyUsageType'} eq 'critical') {
       $main->{'radio1'}->set_active(1)
@@ -1369,7 +1373,7 @@ sub show_config_ca {
             \$main->{'TCONFIG'}->{'v3_ca'}->{'keyUsageType'}, 'critical')});
    $main->{'radiobox'}->add($main->{'radio1'});
 
-   $main->{'radio2'} = Gtk2::RadioButton->new($main->{'radio1'},
+   $main->{'radio2'} = Gtk3::RadioButton->new($main->{'radio1'},
          _($main->{'words'}{'noncritical'}));
    if($main->{'TCONFIG'}->{'v3_ca'}->{'keyUsageType'} eq 'noncritical') {
       $main->{'radio2'}->set_active(1)
@@ -1379,7 +1383,7 @@ sub show_config_ca {
          \$main->{'TCONFIG'}->{'v3_ca'}->{'keyUsageType'}, 'noncritical')});
    $main->{'radiobox'}->add($main->{'radio2'});
 
-   $combokeyUsage = Gtk2::Combo->new();
+   $combokeyUsage = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'},
                     $main->{'words'}{'keyCertSign'},
                     $main->{'words'}{'cRLSign'},
@@ -1431,7 +1435,7 @@ sub show_config_ca {
          _("Netscape Certificate Type (nsCertType):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combonsCertType = Gtk2::Combo->new();
+   $combonsCertType = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'},
                     $main->{'words'}{'emailCA'},
                     $main->{'words'}{'sslCA'},
@@ -1462,7 +1466,7 @@ sub show_config_ca {
          _("Subject alternative name (subjectAltName):"), 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $rows-1, $rows);
 
-   $combosubjectAltName = Gtk2::Combo->new();
+   $combosubjectAltName = Gtk3::Combo->new();
    @combostrings = ($main->{'words'}{'none'}, $main->{'words'}{'emailcopy'});
    $combosubjectAltName->set_popdown_strings(@combostrings);
    $combosubjectAltName->set_use_arrows(1);

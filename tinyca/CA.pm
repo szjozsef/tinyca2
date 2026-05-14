@@ -17,10 +17,13 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 
 package CA;
 
 use POSIX;
+use UI;
+use I18N qw(_);
 
 sub new {
    my $that = shift;
@@ -95,25 +98,23 @@ sub open_ca {
 
    $box->destroy() if(defined($box));
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    my ($i, $cnf, @lines, $oldca, $index, $bak, $t);
 
-   GUI::HELPERS::set_status($main, _("  Opening CA: ").$opts->{'name'});
-   while(Gtk2->events_pending) {
-      Gtk2->main_iteration;
-   }
+   UI->status($main, _("  Opening CA: ").$opts->{'name'});
+   UI->yield;
 
    if(!exists($self->{$opts->{'name'}})) {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(_("Invalid CA selected"));
+      UI->cursor($main, 0);
+      UI->warning(_("Invalid CA selected"));
       return;
    }
 
    # selected CA is already open
    if ((defined($self->{'actca'})) &&
        ($opts->{'name'} eq $self->{'actca'})) {
-      GUI::HELPERS::set_cursor($main, 0);
+      UI->cursor($main, 0);
       return;
    }
 
@@ -150,20 +151,18 @@ sub open_ca {
    delete($main->{'REQ'}->{'OpenSSL'}->{'CACHE'});
    delete($main->{'OpenSSL'});
 
-   GUI::HELPERS::set_status($main, _("  Initializing OpenSSL"));
+   UI->status($main, _("  Initializing OpenSSL"));
    $main->{'OpenSSL'} = OpenSSL->new(
          $main->{'init'}->{'opensslbin'}, $main->{'tmpdir'});
 
    $index = $self->{'cadir'}."/index.txt";
 
-   GUI::HELPERS::set_status($main, _("  Check for CA Version"));
-   while(Gtk2->events_pending) {
-      Gtk2->main_iteration;
-   }
+   UI->status($main, _("  Check for CA Version"));
+   UI->yield;
 
    open(INDEX, "+<$index") || do {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_error(_("Can't open index file: ".$!));
+      UI->cursor($main, 0);
+      UI->error(_("Can't open index file: ".$!));
       return;
    };
 
@@ -178,26 +177,24 @@ sub open_ca {
    # offer CA conversion for old CAs and openssl >= 0.9.7
    if($oldca && ($main->{'OpenSSL'}->{'version'} eq "0.9.7") &&
          !$opts->{'noconv'} && !$opts->{'doconv'}) {
-      GUI::HELPERS::set_status($main, _("  Convert CA"));
-      while(Gtk2->events_pending) {
-         Gtk2->main_iteration;
-      }
+      UI->status($main, _("  Convert CA"));
+      UI->yield;
       $self->{'actca'} = undef;
-      GUI::HELPERS::set_cursor($main, 0);
+      UI->cursor($main, 0);
       $main->show_ca_convert_dialog($opts);
       return;
    }
 
    if($opts->{'doconv'}) {
       open(INDEX, "+<$index") || do {
-         GUI::HELPERS::set_cursor($main, 0);
-         GUI::HELPERS::print_error(_("Can't open index file: ".$!));
+         UI->cursor($main, 0);
+         UI->error(_("Can't open index file: ".$!));
          return;
       };
       $bak = $index.".bak";
       open(BAK, "+>$bak") || do {
-         GUI::HELPERS::set_cursor($main, 0);
-         GUI::HELPERS::print_error(_("Can't open index backup: ").$!);
+         UI->cursor($main, 0);
+         UI->error(_("Can't open index backup: ").$!);
          return;
       };
       seek(INDEX, 0, 0);
@@ -219,36 +216,28 @@ sub open_ca {
       $t .= _("You will find a backup copy of the index file at: ");
       $t .= $bak;
 
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_info($t);
+      UI->cursor($main, 0);
+      UI->info($t);
    }
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
-   GUI::HELPERS::set_status($main, _("  Read Configuration"));
-   while(Gtk2->events_pending) {
-      Gtk2->main_iteration;
-   }
+   UI->status($main, _("  Read Configuration"));
+   UI->yield;
    $main->{'TCONFIG'}->init_config($main, $opts->{'name'});
 
-   GUI::HELPERS::set_status($main, _("  Create GUI"));
-   while(Gtk2->events_pending) {
-      Gtk2->main_iteration;
-   }
+   UI->status($main, _("  Create GUI"));
+   UI->yield;
    $main->create_mframe(1);
 
-   GUI::HELPERS::set_status($main, _("  Create Toolbar"));
-   while(Gtk2->events_pending) {
-      Gtk2->main_iteration;
-   }
+   UI->status($main, _("  Create Toolbar"));
+   UI->yield;
    $main->create_toolbar('ca');
 
-   GUI::HELPERS::set_status($main, _("  Actual CA: ").$self->{'actca'});
-   while(Gtk2->events_pending) {
-      Gtk2->main_iteration;
-   }
+   UI->status($main, _("  Actual CA: ").$self->{'actca'});
+   UI->yield;
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
    $main->{'nb'}->set_current_page(0);
 
@@ -266,7 +255,7 @@ sub get_ca_delete {
       return;
    }elsif(!exists($self->{$name})) {
       $main->show_select_ca_dialog('delete');
-      GUI::HELPERS::print_warning(_("Invalid CA selected"));
+      UI->warning(_("Invalid CA selected"));
       return;
    }else {
       $self->delete_ca($main, $name);
@@ -285,7 +274,7 @@ sub delete_ca {
 
    $box->destroy() if(defined($box));
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    _rm_dir($self->{$name}->{'dir'});
 
@@ -326,10 +315,10 @@ sub delete_ca {
 
    $main->create_mframe();
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
    $t = sprintf(_("CA: %s deleted"), $name);
-   GUI::HELPERS::print_info($t);
+   UI->info($t);
 
    return;
 }
@@ -381,7 +370,7 @@ sub get_ca_create {
    if(defined($mode) && $mode eq "sub") {
       if(not defined($opts->{'parentpw'})) {
          $main->show_ca_dialog($opts, $mode);
-         GUI::HELPERS::print_warning(
+         UI->warning(
              _("Password of parent CA is needed for creating a Sub CA"));
          return;
       }
@@ -391,7 +380,7 @@ sub get_ca_create {
            ($opts->{'name'} eq "") ||
            ($opts->{'name'} =~ /\s/)) {
       $main->show_ca_dialog($opts, $mode);
-      GUI::HELPERS::print_warning(_("Name must be filled in and must")
+      UI->warning(_("Name must be filled in and must")
                           ._(" not contain Spaces"));
       return;
    }
@@ -403,7 +392,7 @@ sub get_ca_create {
       (not defined($opts->{'passwd'})) ||
       ($opts->{'passwd'} eq "")) {
       $main->show_ca_dialog($opts, $mode);
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("Please specify at least Common Name, ")
            ._("Country and Password"));
       return;
@@ -412,7 +401,7 @@ sub get_ca_create {
    if((not defined($opts->{'passwd2'})) ||
       $opts->{'passwd'} ne $opts->{'passwd2'}) {
       $main->show_ca_dialog($opts, $mode);
-      GUI::HELPERS::print_warning(_("Passwords don't match"));
+      UI->warning(_("Passwords don't match"));
       return;
    }
 
@@ -420,14 +409,14 @@ sub get_ca_create {
 
    if(length($opts->{'C'}) != 2) {
       $main->show_ca_dialog($opts, $mode);
-      GUI::HELPERS::print_warning(_("Country must be exact 2 letter code"));
+      UI->warning(_("Country must be exact 2 letter code"));
       return;
    }
 
    $t = sprintf(_("CA: %s already exists"), $opts->{'name'});
    if(defined($self->{$opts->{'name'}})) {
       $main->show_ca_dialog($opts, $mode);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    }
 
@@ -463,7 +452,7 @@ sub get_ca_import {
            ($opts->{'name'} eq "") ||
            ($opts->{'name'} =~ /\s/)) {
       $main->show_ca_import_dialog($opts);
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("Name for storage must be filled in and must not contain spaces"));
       return;
    }
@@ -472,7 +461,7 @@ sub get_ca_import {
        ($opts->{'passwd'} eq '')) &&
        (!$opts->{'pwwarning'})) {
       $main->show_ca_import_dialog($opts);
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("You didn't give a password for the private CA key.").
             "\n".
             _("The import will fail, if the key is encrypted."));
@@ -483,7 +472,7 @@ sub get_ca_import {
    if((not defined($opts->{'newpasswd'})) ||
       ($opts->{'newpasswd'} eq '')) {
       $main->show_ca_import_dialog($opts);
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("Please give a new password for the CA"));
       return;
    }
@@ -491,14 +480,14 @@ sub get_ca_import {
    if((not defined($opts->{'newpasswd2'})) ||
       $opts->{'newpasswd'} ne $opts->{'newpasswd2'}) {
       $main->show_ca_import_dialog($opts);
-      GUI::HELPERS::print_warning(_("New passwords don't match"));
+      UI->warning(_("New passwords don't match"));
       return;
    }
 
    if((not defined($opts->{'cacertfile'})) ||
       ($opts->{'cacertfile'} eq '')) {
       $main->show_ca_import_dialog($opts);
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("Please give a CA certificate to import"));
       return;
    }
@@ -506,14 +495,14 @@ sub get_ca_import {
       $main->show_ca_import_dialog($opts);
       $t = sprintf(_("Can't read CA certificate file:\n%s"),
             $opts->{'cacertfile'});
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    }
 
    if((not defined($opts->{'cakeyfile'})) ||
       ($opts->{'cakeyfile'} eq '')) {
       $main->show_ca_import_dialog($opts);
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("Please give a CA keyfile to import"));
       return;
    }
@@ -521,7 +510,7 @@ sub get_ca_import {
       $main->show_ca_import_dialog($opts);
       $t = sprintf(_("Can't read CA key file:\n%s"),
             $opts->{'cakeyfile'});
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    }
 
@@ -538,7 +527,7 @@ sub get_ca_import {
 
       $opts->{'indexwarning'} = 1;
 
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    }
    if(defined($opts->{'indexfile'}) &&
@@ -547,7 +536,7 @@ sub get_ca_import {
       $main->show_ca_import_dialog($opts);
       $t = sprintf(_("Can't read Index file:\n%s"),
             $opts->{'indexfile'});
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    } elsif(defined($opts->{'indexfile'}) &&
            $opts->{'indexfile'} ne '') {
@@ -557,7 +546,7 @@ sub get_ca_import {
    if((not defined($opts->{'certdir'})) ||
       ($opts->{'certdir'} eq '')) {
       $main->show_ca_import_dialog($opts);
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("Please give a directory containing the certificates to import"));
       return;
    }
@@ -565,7 +554,7 @@ sub get_ca_import {
       $main->show_ca_import_dialog($opts);
       $t = sprintf(_("Can't find certificate directory:\n%s"),
             $opts->{'certdir'});
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    }
 
@@ -576,7 +565,7 @@ sub get_ca_import {
       $t = sprintf(
             _("CA: %s already exists. Please choose another name"),
             $name);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    }
 
@@ -592,14 +581,14 @@ sub get_ca_import {
    } else {
       $t = _("Can't find X509v3 Basic Constraints in CA Certificate\n");
       $t .= _("Import canceled");
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    }
 
    if($constr !~ /CA:TRUE/i) {
       $t = _("The selected CA Certificate is no valid CA certificate\n");
       $t .= sprintf(_("X509v3 Basic Constraint is set to: %s"), $constr);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    }
 
@@ -610,7 +599,7 @@ sub get_ca_import {
       open(INDEX, "<$opts->{'indexfile'}") || do {
          $t = sprintf(_("Can't open Index file:\n%s"),
                $opts->{'indexfile'});
-         GUI::HELPERS::print_warning($t);
+         UI->warning($t);
          return;
       };
       while(<INDEX>) {
@@ -663,7 +652,7 @@ sub import_ca {
    opendir(DIR, $opts->{'certdir'}) || do {
       $t = sprintf(_("Can't open Certificate directory: %s"),
             $opts->{'certdir'});
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    };
 
@@ -675,21 +664,19 @@ sub import_ca {
       $c++;
    }
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    # import all the certificate files and gather information if necessary
    $main->{'barbox'}->pack_start($main->{'progress'}, 0, 0, 0);
    foreach $certfile (@files) {
       $t = sprintf(_("   Read Certificate: %s"), $certfile);
-      GUI::HELPERS::set_status($main, $t);
+      UI->status($main, $t);
       $p += 100/$c;
       $main->{'progress'}->set_fraction($p/100);
-      while(Gtk2->events_pending) {
-         Gtk2->main_iteration;
-      }
+      UI->yield;
 
       open(IN, "<$certfile") || do {
-         GUI::HELPERS::set_cursor($main, 0);
+         UI->cursor($main, 0);
          $t = sprintf(_("Can't read Certificate file: %s"), $certfile);
          return;
       };
@@ -713,7 +700,7 @@ sub import_ca {
       $data->{'file'} = $self->{$ca}->{'dir'}."/certs/".$data->{'name'};
 
       open(OUT, ">$data->{'file'}") || do {
-         GUI::HELPERS::set_cursor($main, 0);
+         UI->cursor($main, 0);
          $t = sprintf(_("Can't write Certificate file: %s"),
                $data->{'file'});
          return;
@@ -764,7 +751,7 @@ sub import_ca {
    # create index file
    $index = $self->{$ca}->{'dir'}."/index.txt";
    open(OUT, ">$index") || do {
-      GUI::HELPERS::print_error(_("Can't open Index file: ").$!);
+      UI->error(_("Can't open Index file: ").$!);
       return;
    };
    print OUT $opts->{'indexdata'};
@@ -775,7 +762,7 @@ sub import_ca {
 
    # write cacertfile
    open(OUT, ">$cacertfile") || do {
-      GUI::HELPERS::set_cursor($main, 0);
+      UI->cursor($main, 0);
       $t = sprintf(_("Can't write CA Certificate file: %s"),
             $cacertfile);
       return;
@@ -796,7 +783,7 @@ sub import_ca {
    # create serial file
    $serial = $self->{$ca}->{'dir'}."/serial";
    open(OUT, ">$serial") || do {
-      GUI::HELPERS::print_error(_("Can't write Serial file: ").$!);
+      UI->error(_("Can't write Serial file: ").$!);
       return;
    };
 
@@ -809,7 +796,7 @@ sub import_ca {
 
    # write keyfile
    open(OUT, ">$cakeyfile") || do {
-      GUI::HELPERS::set_cursor($main, 0);
+      UI->cursor($main, 0);
       $t = sprintf(_("Can't write CA Key file: %s"),
             $cakeyfile);
       return;
@@ -826,14 +813,14 @@ sub import_ca {
          );
 
    if ((not -s $self->{$ca}->{'dir'}."/crl/crl.pem") || $ret) {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_error(_("Generating CRL failed"), $ext);
+      UI->cursor($main, 0);
+      UI->error(_("Generating CRL failed"), $ext);
       die;
       return;
    }
 
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
    $main->{'barbox'}->remove($main->{'progress'});
 
    push(@{$self->{'calist'}}, $ca);
@@ -841,7 +828,7 @@ sub import_ca {
 
    $t = sprintf(_("Succesfully imported %d certificates\n"), $c);
    $t.= _("Check the configuration of your imported CA.");
-   GUI::HELPERS::print_info($t);
+   UI->info($t);
 
    $self->open_ca($main, $opts);
 
@@ -857,7 +844,7 @@ sub create_ca_env {
    my ($t, $index, $serial);
 
    if((!defined($opts->{'name'})) || $opts->{'name'} eq '') {
-      GUI::HELPERS::print_error(_("No CA name given"));
+      UI->error(_("No CA name given"));
       return;
    }
 
@@ -866,32 +853,32 @@ sub create_ca_env {
       $self->{'init'}->{'basedir'}."/".$opts->{'name'};
 
    mkdir($self->{$opts->{'name'}}->{'dir'}, 0700) || do {
-      GUI::HELPERS::print_warning(_("Can't create directory: ").$!);
+      UI->warning(_("Can't create directory: ").$!);
       return;
    };
 
    mkdir($self->{$opts->{'name'}}->{'dir'}."/req", 0700) || do {
-      GUI::HELPERS::print_warning(_("Can't create directory: ").$!);
+      UI->warning(_("Can't create directory: ").$!);
       return;
    };
 
    mkdir($self->{$opts->{'name'}}->{'dir'}."/keys", 0700) || do {
-      GUI::HELPERS::print_warning(_("Can't create directory: ").$!);
+      UI->warning(_("Can't create directory: ").$!);
       return;
    };
 
    mkdir($self->{$opts->{'name'}}->{'dir'}."/certs", 0700) || do {
-      GUI::HELPERS::print_warning(_("Can't create directory: ").$!);
+      UI->warning(_("Can't create directory: ").$!);
       return;
    };
 
    mkdir($self->{$opts->{'name'}}->{'dir'}."/crl", 0700) || do {
-      GUI::HELPERS::print_warning(_("Can't create directory: ").$!);
+      UI->warning(_("Can't create directory: ").$!);
       return;
    };
 
    mkdir($self->{$opts->{'name'}}->{'dir'}."/newcerts", 0700) || do {
-      GUI::HELPERS::print_warning(_("Can't create directory: ").$!);
+      UI->warning(_("Can't create directory: ").$!);
       return;
    };
 
@@ -901,12 +888,12 @@ sub create_ca_env {
 
    open(IN, "<$in") || do {
       $t = sprintf(_("Can't open template file %s %s"), $in, $!);
-      GUI::HELPERS::print_error($t);
+      UI->error($t);
       return;
    };
    open(OUT, ">$out") || do {
       $t = sprintf(_("Can't open output file: %s: %s"),$out, $!);
-      GUI::HELPERS::print_error($t);
+      UI->error($t);
       return;
    };
    while(<IN>) {
@@ -922,14 +909,14 @@ sub create_ca_env {
    # create some more files
    $index = $self->{$opts->{'name'}}->{'dir'}."/index.txt";
    open(OUT, ">$index") || do {
-      GUI::HELPERS::print_error(_("Can't open Index file: ").$!);
+      UI->error(_("Can't open Index file: ").$!);
       return;
    };
    close(OUT);
 
    $serial = $self->{$opts->{'name'}}->{'dir'}."/serial";
    open(OUT, ">$serial") || do {
-      GUI::HELPERS::print_error(_("Can't write Serial file: ").$!);
+      UI->error(_("Can't write Serial file: ").$!);
       return;
    };
 
@@ -942,7 +929,7 @@ sub create_ca_env {
 
    $serial = $self->{$opts->{'name'}}->{'dir'}."/crl_serial";
    open(OUT, ">$serial") || do {
-      GUI::HELPERS::print_error(_("Can't write CRL Serial file: ").$!);
+      UI->error(_("Can't write CRL Serial file: ").$!);
       return;
    };
 
@@ -975,11 +962,11 @@ sub create_ca {
 
    $box->destroy() if(defined($box));
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    if((!defined($opts->{'name'})) || $opts->{'name'} eq '') {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_error(_("No CA name given"));
+      UI->cursor($main, 0);
+      UI->error(_("No CA name given"));
       return;
    }
 
@@ -991,8 +978,8 @@ sub create_ca {
          );
 
    if (not -s $self->{$opts->{'name'}}->{'dir'}."/cacert.key" || $ret) {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(_("Generating key failed"), $ext);
+      UI->cursor($main, 0);
+      UI->warning(_("Generating key failed"), $ext);
       _rm_dir($self->{$opts->{'name'}}->{'dir'});
       delete($self->{$opts->{'name'}});
       return;
@@ -1025,8 +1012,8 @@ sub create_ca {
    if (not -s $self->{$opts->{'name'}}->{'dir'}."/cacert.req" || $ret) {
       unlink($self->{$opts->{'name'}}->{'dir'}."/cacert.key");
       unlink($self->{$opts->{'name'}}->{'dir'}."/cacert.req");
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(_("Generating Request failed"), $ext);
+      UI->cursor($main, 0);
+      UI->warning(_("Generating Request failed"), $ext);
       _rm_dir($self->{$opts->{'name'}}->{'dir'});
       delete($self->{$opts->{'name'}});
       return;
@@ -1034,13 +1021,13 @@ sub create_ca {
    if(defined($mode) && $mode eq "sub") {
       # for SubCAs: copy the request to the signing CA
       open(IN, "<$self->{$opts->{'name'}}->{'dir'}"."/cacert.req") || do {
-         GUI::HELPERS::set_cursor($main, 0);
-         GUI::HELPERS::print_warning(_("Can't read Certificate"));
+         UI->cursor($main, 0);
+         UI->warning(_("Can't read Certificate"));
          return;
       };
       open(OUT, ">$self->{$ca}->{'dir'}"."/req/".$opts->{'reqname'}.".pem") || do {
-         GUI::HELPERS::set_cursor($main, 0);
-         GUI::HELPERS::print_warning(_("Can't write Certificate"));
+         UI->cursor($main, 0);
+         UI->warning(_("Can't write Certificate"));
          return;
       };
       print OUT while(<IN>);
@@ -1048,13 +1035,13 @@ sub create_ca {
 
       # for SubCAs: copy the key to the signing CA
       open(IN, "<$self->{$opts->{'name'}}->{'dir'}"."/cacert.key") || do {
-         GUI::HELPERS::set_cursor($main, 0);
-         GUI::HELPERS::print_warning(_("Can't read Certificate"));
+         UI->cursor($main, 0);
+         UI->warning(_("Can't read Certificate"));
          return;
       };
       open(OUT, ">$self->{$ca}->{'dir'}"."/keys/".$opts->{'reqname'}.".pem") || do {
-         GUI::HELPERS::set_cursor($main, 0);
-         GUI::HELPERS::print_warning(_("Can't write Certificate"));
+         UI->cursor($main, 0);
+         UI->warning(_("Can't write Certificate"));
          return;
       };
       print OUT while(<IN>);
@@ -1094,8 +1081,8 @@ sub create_ca {
    }
 
    if (not -s $self->{$opts->{'name'}}->{'dir'}."/cacert.pem" || $ret) {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(
+      UI->cursor($main, 0);
+      UI->warning(
             _("Generating certificate failed"), $ext);
       _rm_dir($self->{$opts->{'name'}}->{'dir'});
       delete($self->{$opts->{'name'}});
@@ -1117,8 +1104,8 @@ sub create_ca {
      open(IN, "<$in") || do {
         $t = sprintf(
               _("Can't open ca certificate file %s %s"), $in, $!);
-        GUI::HELPERS::set_cursor($main, 0);
-        GUI::HELPERS::print_warning($t);
+        UI->cursor($main, 0);
+        UI->warning($t);
         _rm_dir($self->{$opts->{'name'}}->{'dir'});
         delete($self->{$opts->{'name'}});
         return;
@@ -1126,7 +1113,7 @@ sub create_ca {
      open(OUT, ">$out") || do {
         $t = sprintf(
               _("Can't create certificate chain file: %s: %s"),$out, $!);
-        GUI::HELPERS::set_cursor($main, 0);
+        UI->cursor($main, 0);
         $main->print_warning($t);
         _rm_dir($self->{$opts->{'name'}}->{'dir'});
         delete($self->{$opts->{'name'}});
@@ -1142,8 +1129,8 @@ sub create_ca {
      open(IN, "<$in") || do {
         $t = sprintf(
               _("Can't open ca certificate file %s %s"), $in, $!);
-        GUI::HELPERS::set_cursor($main, 0);
-        GUI::HELPERS::print_warning($t);
+        UI->cursor($main, 0);
+        UI->warning($t);
         _rm_dir($self->{$opts->{'name'}}->{'dir'});
         delete($self->{$opts->{'name'}});
         return;
@@ -1164,8 +1151,8 @@ sub create_ca {
          );
 
    if (not -s $self->{$opts->{'name'}}->{'dir'}."/crl/crl.pem" || $ret) {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(_("Generating CRL failed"), $ext);
+      UI->cursor($main, 0);
+      UI->warning(_("Generating CRL failed"), $ext);
       _rm_dir($self->{$opts->{'name'}}->{'dir'});
       delete($self->{$opts->{'name'}});
       return;
@@ -1175,9 +1162,9 @@ sub create_ca {
    push(@{$self->{'calist'}}, $opts->{'name'});
    @{$self->{'calist'}} = sort(@{$self->{'calist'}});
    $t = sprintf(_("CA: %s created"), $opts->{'name'});
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
-   GUI::HELPERS::print_info($t);
+   UI->info($t);
 
    $self->open_ca($main, $opts);
    return;
@@ -1202,21 +1189,21 @@ sub export_ca_chain {
       return;
    }
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    $chainfile = $self->{$ca}->{'dir'}."/cachain.pem";
 
    open(IN, "<$self->{$ca}->{'dir'}"."/cachain.pem") || do {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(
+      UI->cursor($main, 0);
+      UI->warning(
             _("Can't open certificate chain file: %s: %s"),
             $self->{$ca}->{'dir'}."/cachain.pem", $!);
       return;
    };
 
    open(OUT, ">$opts->{'outfile'}") || do {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(
+      UI->cursor($main, 0);
+      UI->warning(
             _("Can't open output file: %s: %s"),
             $opts->{'outfile'}, $!);
       return;
@@ -1228,11 +1215,11 @@ sub export_ca_chain {
    $main->{'exportdir'} = HELPERS::write_export_dir($main,
          $opts->{'outfile'});
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
    $t = sprintf(_("Certificate Chain succesfully exported to: %s"),
          $opts->{'outfile'});
-   GUI::HELPERS::print_info($t);
+   UI->info($t);
 
    return;
 }
@@ -1247,7 +1234,7 @@ sub export_ca_cert {
 
    $box->destroy() if(defined($box));
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    $ca = $self->{'actca'};
 
@@ -1256,7 +1243,7 @@ sub export_ca_cert {
    if(not defined($opts)) {
       $opts->{'format'}  = 'PEM';
       $opts->{'outfile'} = "$main->{'exportdir'}/$ca-cacert.pem";
-      GUI::HELPERS::set_cursor($main, 0);
+      UI->cursor($main, 0);
       $main->show_ca_export_dialog($opts);
       return;
    }
@@ -1264,8 +1251,8 @@ sub export_ca_cert {
    $parsed = $main->{'CERT'}->parse_cert($main, 'CA');
 
    if(not defined $parsed) {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_error(_("Can't read CA certificate"));
+      UI->cursor($main, 0);
+      UI->error(_("Can't read CA certificate"));
    }
 
    if($opts->{'format'} eq "PEM") {
@@ -1277,16 +1264,16 @@ sub export_ca_cert {
    } else {
       $t = sprintf(_("Invalid Format for export_ca_cert(): %s"),
             $opts->{'format'});
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning($t);
+      UI->cursor($main, 0);
+      UI->warning($t);
       return;
    }
 
    open(OUT, ">$opts->{'outfile'}") || do {
-      GUI::HELPERS::set_cursor($main, 0);
+      UI->cursor($main, 0);
       $t = sprintf(_("Can't open output file: %s: %s"),
             $opts->{'outfile'}, $!);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    };
 
@@ -1296,10 +1283,10 @@ sub export_ca_cert {
    $main->{'exportdir'} = HELPERS::write_export_dir($main,
          $opts->{'outfile'});
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
    $t = sprintf(_("Certificate succesfully exported to: %s"),
          $opts->{'outfile'});
-   GUI::HELPERS::print_info($t);
+   UI->info($t);
 
    return;
 }
@@ -1314,7 +1301,7 @@ sub export_crl {
 
    $box->destroy() if(defined($box));
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    $ca = $self->{'actca'};
 
@@ -1323,24 +1310,24 @@ sub export_crl {
       $opts->{'format'}  = 'PEM';
       $opts->{'days'} = $main->{'TCONFIG'}->{'server_ca'}->{'default_crl_days'};
 
-      GUI::HELPERS::set_cursor($main, 0);
+      UI->cursor($main, 0);
       $main->show_crl_export_dialog($opts);
       return;
    }
 
    if((not defined($opts->{'outfile'})) || ($opts->{'outfile'} eq '')) {
-      GUI::HELPERS::set_cursor($main, 0);
+      UI->cursor($main, 0);
       $t = _("Please give the output file");
       $main->show_crl_export_dialog($opts);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
            return;
       };
 
    if((not defined($opts->{'passwd'})) || ($opts->{'passwd'} eq '')) {
-      GUI::HELPERS::set_cursor($main, 0);
+      UI->cursor($main, 0);
       $t = _("Please give the CA password to create the Revocation List");
       $main->show_crl_export_dialog($opts);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    }
 
@@ -1356,25 +1343,25 @@ sub export_crl {
          format  => $opts->{'format'}
          );
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
    if($ret eq 1) {
       $t = _("Wrong CA password given\nGenerating Revocation List failed");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       return;
    } elsif($ret eq 2) {
       $t = _("CA Key not found\nGenerating Revocation List failed");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       return;
    } elsif($ret) {
       $t = _("Generating Revocation List failed");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       return;
    }
 
    if (not -s $opts->{'outfile'}) {
       $t = _("Generating Revocation List failed");
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    }
 
@@ -1383,7 +1370,7 @@ sub export_crl {
 
    $t = sprintf(_("CRL successfully exported to: %s"),
          $opts->{'outfile'});
-   GUI::HELPERS::print_info($t, $ext);
+   UI->info($t, $ext);
 
    return;
 }

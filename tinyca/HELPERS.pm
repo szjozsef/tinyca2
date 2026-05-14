@@ -18,9 +18,12 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 package HELPERS;
 
 use POSIX;
+use UI;
+use I18N qw(_);
 
 my $version = "0.1";
 my $true = 1;
@@ -84,13 +87,10 @@ sub exit_clean {
 
    $ret = 0 unless(defined $ret);
 
-   # hack to avoid busy cursor
-   my $rootwin = Gtk2::Gdk->get_default_root_window();
-   my $cursor  = Gtk2::Gdk::Cursor->new('left-ptr');
-
-   $rootwin->set_cursor($cursor);
-
-   Gtk2->main_quit();
+   # Clear the busy cursor and shut down the GUI main loop via the
+   # UI seam (Stage 4 — see tinyca/UI.pm).
+   UI->root_window_cursor('left-ptr');
+   UI->main_quit();
    exit($ret);
 }
 
@@ -167,10 +167,15 @@ sub parse_extensions {
          }
          $tmp->{$k} = [];
          $i++;
-         while(($lines->[$i] !~ /^[\s\t].+:\s*$/) &&
+         # Stage 12: bounds check moved FIRST so the regex matches don't
+         # evaluate against undef when $i runs off the end of @$lines.
+         # The previous order emitted three "Use of uninitialized value"
+         # warnings under `use warnings` on every well-formed extension
+         # block that ended at the array boundary.
+         while(($i < @{$lines}) &&
+               ($lines->[$i] !~ /^[\s\t].+:\s*$/) &&
                ($lines->[$i] !~ /^[\s\t]*[^:]+:\s+.+$/) &&
-               ($lines->[$i] !~ /^[\s\t]*Signature Algorithm/i) &&
-               ($i < @{$lines})) {
+               ($lines->[$i] !~ /^[\s\t]*Signature Algorithm/i)) {
             $v = $lines->[$i];
             $v =~ s/^[\s]+//g;
             $v =~ s/[\s]+$//g;
@@ -216,7 +221,7 @@ sub write_export_dir {
    open(EXPOUT, ">$main->{'cadir'}/.exportdir") || do {
       my $t = sprintf(_("Can't write exportdir: %s, %s"),
                "$main->{'cadir'}/.exportdir", $!);
-      GUI::HELPERS::print_warning($t);
+      UI->warning($t);
       return;
    };
    print EXPOUT "$dir\n";

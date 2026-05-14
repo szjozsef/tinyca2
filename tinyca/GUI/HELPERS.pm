@@ -17,9 +17,13 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 package GUI::HELPERS;
 
 use POSIX;
+use UI::Stock;            # Stage 6: shims `new_from_stock` to themed icons
+use UI::Compat;           # Stage 7: shims HBox/VBox/Separator/ButtonBox/Table
+use I18N qw(_);           # Stage 12: formalised gettext wrapper
 
 #
 #  Error message box, kills application
@@ -29,29 +33,29 @@ sub print_error {
 
    my ($box, $button, $dbutton, $expander, $text, $scrolled, $buffer);
 
-   $button = Gtk2::Button->new_from_stock('gtk-ok');
+   $button = Gtk3::Button->new_from_stock('gtk-ok');
    $button->signal_connect('clicked', sub { HELPERS::exit_clean(1) });
    $button->can_default(1);
 
-   $box = Gtk2::MessageDialog->new(
+   $box = Gtk3::MessageDialog->new(
          undef, [qw/destroy-with-parent modal/], 'error', 'none', $t);
    $box->set_default_size(600, 0);
    $box->set_resizable(1);
 
    if(defined($ext)) {
-      $buffer = Gtk2::TextBuffer->new();
+      $buffer = Gtk3::TextBuffer->new();
       $buffer->set_text($ext);
 
-      $text = Gtk2::TextView->new_with_buffer($buffer);
+      $text = Gtk3::TextView->new_with_buffer($buffer);
       $text->set_editable(0);
       $text->set_wrap_mode('word');
 
-      $scrolled = Gtk2::ScrolledWindow->new(undef, undef);
+      $scrolled = Gtk3::ScrolledWindow->new(undef, undef);
       $scrolled->set_policy('never', 'automatic');
       $scrolled->set_shadow_type('etched-in');
       $scrolled->add($text);
 
-      $expander = Gtk2::Expander->new(_("Command Details"));
+      $expander = Gtk3::Expander->new(_("Command Details"));
       $expander->add($scrolled);
       $box->vbox->add($expander);
    }
@@ -69,29 +73,29 @@ sub print_warning {
 
    my ($box, $button, $dbutton, $expander, $text, $scrolled, $buffer);
 
-   $button = Gtk2::Button->new_from_stock('gtk-ok');
+   $button = Gtk3::Button->new_from_stock('gtk-ok');
    $button->signal_connect('clicked', sub { $box->destroy() });
    $button->can_default(1);
 
-   $box = Gtk2::MessageDialog->new(
+   $box = Gtk3::MessageDialog->new(
          undef, [qw/destroy-with-parent modal/], 'warning', 'none', $t);
    $box->set_default_size(600, 0);
    $box->set_resizable(1);
 
    if(defined($ext)) {
-      $buffer = Gtk2::TextBuffer->new();
+      $buffer = Gtk3::TextBuffer->new();
       $buffer->set_text($ext);
 
-      $text = Gtk2::TextView->new_with_buffer($buffer);
+      $text = Gtk3::TextView->new_with_buffer($buffer);
       $text->set_editable(0);
       $text->set_wrap_mode('word');
 
-      $scrolled = Gtk2::ScrolledWindow->new(undef, undef);
+      $scrolled = Gtk3::ScrolledWindow->new(undef, undef);
       $scrolled->set_policy('never', 'automatic');
       $scrolled->set_shadow_type('etched-in');
       $scrolled->add($text);
 
-      $expander = Gtk2::Expander->new(_("Command Details"));
+      $expander = Gtk3::Expander->new(_("Command Details"));
       $expander->add($scrolled);
       $box->vbox->add($expander);
    }
@@ -110,29 +114,29 @@ sub print_info {
 
    my ($box, $button, $dbutton, $buffer, $text, $scrolled, $expander);
 
-   $button = Gtk2::Button->new_from_stock('gtk-ok');
+   $button = Gtk3::Button->new_from_stock('gtk-ok');
    $button->signal_connect('clicked', sub { $box->destroy() });
    $button->can_default(1);
 
-   $box = Gtk2::MessageDialog->new(
+   $box = Gtk3::MessageDialog->new(
          undef, [qw/destroy-with-parent modal/], 'info', 'none', $t);
    $box->set_default_size(600, 0);
    $box->set_resizable(1);
 
    if(defined($ext)) {
-      $buffer = Gtk2::TextBuffer->new();
+      $buffer = Gtk3::TextBuffer->new();
       $buffer->set_text($ext);
 
-      $text = Gtk2::TextView->new_with_buffer($buffer);
+      $text = Gtk3::TextView->new_with_buffer($buffer);
       $text->set_editable(0);
       $text->set_wrap_mode('word');
 
-      $scrolled = Gtk2::ScrolledWindow->new(undef, undef);
+      $scrolled = Gtk3::ScrolledWindow->new(undef, undef);
       $scrolled->set_policy('never', 'automatic');
       $scrolled->set_shadow_type('etched-in');
       $scrolled->add($text);
 
-      $expander = Gtk2::Expander->new(_("Command Details"));
+      $expander = Gtk3::Expander->new(_("Command Details"));
       $expander->add($scrolled);
       $box->vbox->add($expander);
    }
@@ -149,7 +153,7 @@ sub print_info {
 sub dialog_box {
    my ($title, $text, $button1, $button2) = @_;
 
-   my $box = Gtk2::Dialog->new($title, undef, ["destroy-with-parent"]);
+   my $box = Gtk3::Dialog->new($title, undef, ["destroy-with-parent"]);
 
    $box->add_action_widget($button1, 0);
 
@@ -176,7 +180,7 @@ sub create_label {
 
    $text = "<b>$text</b>" if($bold);
 
-   my $label = Gtk2::Label->new($text);
+   my $label = Gtk3::Label->new($text);
 
    $label->set_justify($mode);
    if($mode eq 'center') {
@@ -227,7 +231,7 @@ sub entry_to_table {
    $label = create_label($text, 'left', 0, 0);
    $table->attach_defaults($label, 0, 1, $row, $row+1);
 
-   $entry = Gtk2::Entry->new();
+   $entry = Gtk3::Entry->new();
    $entry->set_text($$var) if(defined($$var));
 
    $table->attach_defaults($entry, 1, 2, $row, $row+1);
@@ -255,10 +259,10 @@ sub create_activity_bar {
 
    my($box, $bar);
 
-   $box = Gtk2::MessageDialog->new(
+   $box = Gtk3::MessageDialog->new(
       undef, [qw/destroy-with-parent modal/], 'info', 'none', $t);
 
-   $bar = Gtk2::ProgressBar->new();
+   $bar = Gtk3::ProgressBar->new();
    $bar->pulse();
    $bar->set_pulse_step(0.1);
 
@@ -281,8 +285,8 @@ sub set_cursor {
    } else {
       $main->{'rootwin'}->set_cursor($main->{'cursor'});
    }
-   while(Gtk2->events_pending) {
-      Gtk2->main_iteration;
+   while(Gtk3->events_pending) {
+      Gtk3->main_iteration;
    }
 }
 
@@ -294,21 +298,23 @@ sub browse_file {
 
    my($file_chooser, $filename, $filter);
 
-   $file_chooser = Gtk2::FileChooserDialog->new ($title, undef, $mode,
-         'gtk-cancel' => 'cancel',
-         'gtk-ok' => 'ok');
+   # Stage 6: Gtk3 FileChooserDialog wants plain button-text strings, not
+   # the legacy 'gtk-cancel' / 'gtk-ok' stock IDs.
+   $file_chooser = Gtk3::FileChooserDialog->new ($title, undef, $mode,
+         _('_Cancel') => 'cancel',
+         _('_OK')     => 'ok');
 
    $file_chooser->add_shortcut_folder ('/tmp');
 
    if($mode eq 'open') {
-      $filter = Gtk2::FileFilter->new();
+      $filter = Gtk3::FileFilter->new();
       $filter->set_name(_("Request Files (*.pem, *.der, *.req)"));
       $filter->add_pattern("*.pem");
       $filter->add_pattern("*.der");
       $filter->add_pattern("*.req");
       $file_chooser->add_filter($filter);
 
-      $filter = Gtk2::FileFilter->new();
+      $filter = Gtk3::FileFilter->new();
       $filter->set_name(_("All Files (*.*)"));
       $filter->add_pattern("*");
       $file_chooser->add_filter($filter);
@@ -372,7 +378,7 @@ TinyCA2 modules. All functions are related to the GUI.
 
 =over 1
 
-creates an Gtk2::MessageDialog of the type info. The string given in $text is
+creates an Gtk3::MessageDialog of the type info. The string given in $text is
 shown as message, the (multiline) string $ext is available through the
 "Details" Button.
 
@@ -383,7 +389,7 @@ shown as message, the (multiline) string $ext is available through the
 =over 1
 
 is identically with GUI::HELPERS::print_warning(), only the
-Gtk2::MessageDialog is of type warning.
+Gtk3::MessageDialog is of type warning.
 
 =back
 
@@ -391,7 +397,7 @@ Gtk2::MessageDialog is of type warning.
 
 =over 1
 
-is identically with GUI::HELPERS::print_info(), only the Gtk2::MessageDialogog
+is identically with GUI::HELPERS::print_info(), only the Gtk3::MessageDialogog
 is of type error and the program will shut down after closing the message.
 
 =back
@@ -408,7 +414,7 @@ sorts the clist with the values from the given column $col.
 
 =over 1
 
-returns the reference to a new window of type Gtk2::Dialog. $title and
+returns the reference to a new window of type Gtk3::Dialog. $title and
 $button1 must be given.  $text and $button2 are optional arguments and can be
 undef.
 
@@ -418,7 +424,7 @@ undef.
 
 =over 1
 
-returns the reference to a new Gtk2::Label. $mode can be "center", "left" or
+returns the reference to a new Gtk3::Label. $mode can be "center", "left" or
 "right". $wrap and $bold are boolean values.
 
 =back
@@ -441,7 +447,7 @@ The function returns the number of the next free row in the table.
 
 adds a new row to $table. The new row is appended at $row and has two columns:
 the first will contain a label with the content of the string $text, the
-second one will contain a textentry Gtk2::Entry, associated with the variable
+second one will contain a textentry Gtk3::Entry, associated with the variable
 $var. $visibility controls, if the entered text will be displayed or not
 (passwords).
 The function returns the reference to the new created entry.

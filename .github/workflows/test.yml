@@ -1,0 +1,46 @@
+name: test
+
+on:
+  push:
+    branches: [ master, gtk3-port ]
+  pull_request:
+    branches: [ master, gtk3-port ]
+
+jobs:
+  prove:
+    name: prove (${{ matrix.os }} / openssl=${{ matrix.openssl }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Modern stack: openssl 3.x, Gtk3, Perl 5.34+.
+          - os: ubuntu-22.04
+            openssl: "3.x"
+          # Older Ubuntu LTS: openssl 1.1.1, the original target era.
+          - os: ubuntu-20.04
+            openssl: "1.1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            perl \
+            libgtk-3-perl libglib-perl libpango-perl libcairo-perl \
+            libmime-base64-perl liblocale-gettext-perl \
+            libtest-deep-perl libtest-exception-perl \
+            openssl zip tar
+
+      - name: Show Perl + OpenSSL versions
+        run: |
+          perl -v | head -3
+          perl -MGtk3 -e 'print "Gtk3 ", $Gtk3::VERSION, "\n"' || echo "Gtk3 module not loadable (OK if headless test only)"
+          openssl version
+
+      - name: Run the test suite
+        run: prove -lr t/

@@ -17,10 +17,13 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 
 package REQ;
 
 use POSIX;
+use UI;
+use I18N qw(_);
 
 sub new {
    my $that = shift;
@@ -58,7 +61,7 @@ sub get_req_create {
 #         $opts->{'digest'} = $ca->{'opts'}->{'client_ca'}->{'default_md'};
       } elsif (defined($opts)) {
          $t = sprintf(_("Strange value for 'opts': %s"), $opts);
-         GUI::HELPERS::print_error($t);
+         UI->error($t);
       }
       $opts->{'bits'}   = 4096;
       $opts->{'digest'} = 'sha256';
@@ -71,7 +74,7 @@ sub get_req_create {
       $parsed = $main->{'CERT'}->parse_cert($main, 'CA');
 
       defined($parsed) ||
-         GUI::HELPERS::print_error(_("Can't read CA certificate"));
+         UI->error(_("Can't read CA certificate"));
 
       # set defaults
       if(defined $parsed->{'C'}) {
@@ -100,7 +103,7 @@ sub get_req_create {
       (not defined($opts->{'passwd'})) ||
       ($opts->{'passwd'} eq "")) {
       $main->show_req_dialog($opts);
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("Please specify at least Common Name ")
             ._("and Password"));
       return;
@@ -109,7 +112,7 @@ sub get_req_create {
    if((not defined($opts->{'passwd2'})) ||
        $opts->{'passwd'} ne $opts->{'passwd2'}) {
       $main->show_req_dialog($opts);
-      GUI::HELPERS::print_warning(_("Passwords don't match"));
+      UI->warning(_("Passwords don't match"));
       return;
    }
 
@@ -119,7 +122,7 @@ sub get_req_create {
       ($opts->{'C'} ne "") &&
       (length($opts->{'C'}) != 2)) {
       $main->show_req_dialog($opts);
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("Country must be exact 2 letter code"));
       return;
    }
@@ -149,7 +152,7 @@ sub create_req {
 
    my($reqfile, $keyfile, $ca, $ret, $ext, $cadir);
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    $ca    = $main->{'CA'}->{'actca'};
    $cadir = $main->{'CA'}->{$ca}->{'dir'};
@@ -166,8 +169,8 @@ sub create_req {
 
    if (not -s $keyfile || $ret) {
       unlink($keyfile);
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(_("Generating key failed"), $ext);
+      UI->cursor($main, 0);
+      UI->warning(_("Generating key failed"), $ext);
       return;
    }
 
@@ -192,8 +195,8 @@ sub create_req {
    if (not -s $reqfile || $ret) {
       unlink($keyfile);
       unlink($reqfile);
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(_("Generating Request failed"), $ext);
+      UI->cursor($main, 0);
+      UI->warning(_("Generating Request failed"), $ext);
       return;
    }
 
@@ -209,7 +212,7 @@ sub create_req {
                                  $cadir."/index.txt",
                                  0);
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
    if($opts->{'sign'}) {
       $opts->{'reqfile'} = $reqfile;
@@ -236,7 +239,7 @@ sub get_del_req {
 
 
       if(not defined($req)) {
-         GUI::HELPERS::print_info(_("Please select a Request first"));
+         UI->info(_("Please select a Request first"));
          return;
       }
 
@@ -246,7 +249,7 @@ sub get_del_req {
    }
 
    if(not -s $reqfile) {
-      GUI::HELPERS::print_warning(_("Request file not found"));
+      UI->warning(_("Request file not found"));
       return;
    }
 
@@ -263,7 +266,7 @@ sub del_req {
 
    my ($ca, $cadir);
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    unlink($file);
 
@@ -275,7 +278,7 @@ sub del_req {
                                  $cadir."/index.txt",
                                  0);
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
    return;
 }
@@ -285,7 +288,7 @@ sub read_reqlist {
 
    my ($f, $modt, $d, $reqlist, $c, $p, $t);
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    $reqlist = [];
 
@@ -293,13 +296,13 @@ sub read_reqlist {
 
    if(defined($self->{'lastread'}) &&
       $self->{'lastread'} >= $modt) {
-      GUI::HELPERS::set_cursor($main, 0);
+      UI->cursor($main, 0);
       return(0);
    }
 
    opendir(DIR, $reqdir) || do {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(_("Can't open Request directory"));
+      UI->cursor($main, 0);
+      UI->warning(_("Can't open Request directory"));
       return(0);
    };
 
@@ -321,13 +324,11 @@ sub read_reqlist {
 
       if(defined($main)) {
          $t = sprintf(_("   Read Request: %s"), $d);
-         GUI::HELPERS::set_status($main, $t);
+         UI->status($main, $t);
          $p += 100/$c;
          if($p/100 <= 1) {
             $main->{'progress'}->set_fraction($p/100);
-            while(Gtk2->events_pending) {
-               Gtk2->main_iteration;
-            }
+            UI->yield;
          }
          select(undef, undef, undef, 0.025);
       }
@@ -343,7 +344,7 @@ sub read_reqlist {
    if(defined($main)) {
       $main->{'progress'}->set_fraction(0);
       $main->{'barbox'}->remove($main->{'progress'});
-      GUI::HELPERS::set_cursor($main, 0);
+      UI->cursor($main, 0);
    }
 
    return(1);  # got new list
@@ -367,7 +368,7 @@ sub get_sign_req {
       $opts->{'req'} = $main->{'reqbrowser'}->selection_dn();
 
       if(not defined($opts->{'req'})) {
-         GUI::HELPERS::print_info(_("Please select a Request first"));
+         UI->info(_("Please select a Request first"));
          return;
       }
 
@@ -376,7 +377,7 @@ sub get_sign_req {
    }
 
    if(not -s $opts->{'reqfile'}) {
-         GUI::HELPERS::print_warning(_("Request file not found"));
+         UI->warning(_("Request file not found"));
          return;
    }
 
@@ -389,7 +390,7 @@ sub get_sign_req {
    $parsed = $main->{'CERT'}->parse_cert($main, 'CA');
 
    defined($parsed) ||
-      GUI::HELPERS::print_error(_("Can't read CA certificate"));
+      UI->error(_("Can't read CA certificate"));
 
    if(!defined($opts->{'passwd'})) {
       $opts->{'days'} =
@@ -414,7 +415,7 @@ sub get_sign_req {
    $parsed = undef;
    $parsed = $self->parse_req($main, $opts->{'reqname'}, 1);
    defined($parsed) ||
-      GUI::HELPERS::print_error(_("Can't read Request file"));
+      UI->error(_("Can't read Request file"));
 
    if(defined($parsed->{'SIG_ALGORITHM'})) {
       $opts->{'digest'} = $parsed->{'SIG_ALGORITHM'};
@@ -456,7 +457,7 @@ sub sign_req {
 
    my($serial, $certout, $certfile, $certfile2, $ca, $cadir, $ret, $t, $ext, $r, $cmd);
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    $ca    = $main->{'reqbrowser'}->selection_caname();
    $cadir = $main->{'reqbrowser'}->selection_cadir();
@@ -466,8 +467,8 @@ sub sign_req {
    $cmd="openssl rand -hex 18 | sed 's/^0/".$r."/' | tr /a-z/ /A-Z/ > ".$serial;
    system($cmd);
    open(IN, "<$serial") || do {
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(_("Can't read serial"));
+      UI->cursor($main, 0);
+      UI->warning(_("Can't read serial"));
       return;
    };
    $serial = <IN>;
@@ -537,34 +538,34 @@ sub sign_req {
             );
    }
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
    if($ret eq 1) {
       $t = _("Wrong CA password given\nSigning of the Request failed");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       delete($opts->{$_}) foreach(keys(%$opts));
       $opts = undef;
       return;
    } elsif($ret eq 2) {
       $t = _("CA Key not found\nSigning of the Request failed");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       delete($opts->{$_}) foreach(keys(%$opts));
       $opts = undef;
       return;
    } elsif($ret eq 3) {
       $t = _("Certificate already existing\nSigning of the Request failed");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       delete($opts->{$_}) foreach(keys(%$opts));
       $opts = undef;
       return;
    } elsif($ret eq 4) {
       $t = _("Invalid IP Address given\nSigning of the Request failed");
-      GUI::HELPERS::print_warning($t, $ext);
+      UI->warning($t, $ext);
       delete($opts->{$_}) foreach(keys(%$opts));
       $opts = undef;
       return;
    } elsif($ret) {
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("Signing of the Request failed"), $ext);
       delete($opts->{$_}) foreach(keys(%$opts));
       $opts = undef;
@@ -581,7 +582,7 @@ sub sign_req {
    }
 
    if (not -s $certout) {
-         GUI::HELPERS::print_warning(
+         UI->warning(
                _("Signing of the Request failed"), $ext);
          delete($opts->{$_}) foreach(keys(%$opts));
          $opts = undef;
@@ -589,13 +590,13 @@ sub sign_req {
    }
 
    open(IN, "<$certout") || do {
-      GUI::HELPERS::print_warning(_("Can't read Certificate file"));
+      UI->warning(_("Can't read Certificate file"));
       delete($opts->{$_}) foreach(keys(%$opts));
       $opts = undef;
       return;
    };
    open(OUT, ">$certfile") || do {
-      GUI::HELPERS::print_warning(_("Can't write Certificate file"));
+      UI->warning(_("Can't write Certificate file"));
       delete($opts->{$_}) foreach(keys(%$opts));
       $opts = undef;
       return;
@@ -605,7 +606,7 @@ sub sign_req {
    if(defined($opts->{'mode'}) && $opts->{'mode'} eq "sub") {
       close OUT;
       open(OUT, ">$certfile2") || do {
-         GUI::HELPERS::print_warning(_("Can't write Certificate file"));
+         UI->warning(_("Can't write Certificate file"));
          delete($opts->{$_}) foreach(keys(%$opts));
          $opts = undef;
          return;
@@ -616,10 +617,10 @@ sub sign_req {
 
    close IN; close OUT;
 
-   GUI::HELPERS::print_info(
+   UI->info(
          _("Request signed succesfully.\nCertificate created"), $ext);
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    $main->{'CERT'}->reread_cert($main,
          HELPERS::dec_base64($opts->{'reqname'}));
@@ -632,7 +633,7 @@ sub sign_req {
    delete($opts->{$_}) foreach(keys(%$opts));
    $opts = undef;
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
    return($ret, $ext);
 }
@@ -658,18 +659,18 @@ sub get_import_req {
 
    if(not defined($opts->{'infile'})) {
       $main->show_req_import_dialog();
-      GUI::HELPERS::print_warning(_("Please select a Request file first"));
+      UI->warning(_("Please select a Request file first"));
       return;
    }
    if(not -s $opts->{'infile'}) {
       $main->show_req_import_dialog();
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("Can't find Request file: ").$opts->{'infile'});
       return;
    }
 
    open(IN, "<$opts->{'infile'}") || do {
-      GUI::HELPERS::print_warning(
+      UI->warning(
             _("Can't read Request file:").$opts->{'infile'});
       return;
    };
@@ -693,7 +694,7 @@ sub get_import_req {
             );
 
       if($ret) {
-         GUI::HELPERS::print_warning(
+         UI->warning(
                _("Error converting Request"), $ext);
          return;
       }
@@ -702,7 +703,7 @@ sub get_import_req {
          HELPERS::mktmp($self->{'OpenSSL'}->{'tmp'}."/import");
 
       open(TMP, ">$opts->{'tmpfile'}") || do {
-         GUI::HELPERS::print_warning( _("Can't create temporary file: %s: %s"),
+         UI->warning( _("Can't create temporary file: %s: %s"),
                $opts->{'tmpfile'}, $!);
          return;
       };
@@ -717,7 +718,7 @@ sub get_import_req {
 
    if(not defined($parsed)) {
       unlink($opts->{'tmpfile'});
-      GUI::HELPERS::print_warning(_("Parsing Request failed"));
+      UI->warning(_("Parsing Request failed"));
       return;
    }
 
@@ -735,7 +736,7 @@ sub import_req {
 
    $box->destroy() if(defined($box));
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    $ca    = $main->{'reqbrowser'}->selection_caname();
    $cadir = $main->{'reqbrowser'}->selection_cadir();
@@ -748,8 +749,8 @@ sub import_req {
 
    open(OUT, ">$opts->{'reqfile'}") || do {
       unlink($opts->{'tmpfile'});
-      GUI::HELPERS::set_cursor($main, 0);
-      GUI::HELPERS::print_warning(_("Can't open output file: %s: %s"),
+      UI->cursor($main, 0);
+      UI->warning(_("Can't open output file: %s: %s"),
             $opts->{'reqfile'}, $!);
       return;
    };
@@ -761,7 +762,7 @@ sub import_req {
                                  $cadir."/index.txt",
                                  0);
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
    return;
 }
@@ -771,7 +772,7 @@ sub parse_req {
 
    my ($parsed, $ca, $reqfile, $req);
 
-   GUI::HELPERS::set_cursor($main, 1);
+   UI->cursor($main, 1);
 
    $ca = $main->{'CA'}->{'actca'};
 
@@ -780,7 +781,7 @@ sub parse_req {
    $parsed = $self->{'OpenSSL'}->parsereq($main->{'CA'}->{$ca}->{'cnf'},
          $reqfile, $force);
 
-   GUI::HELPERS::set_cursor($main, 0);
+   UI->cursor($main, 0);
 
    return($parsed);
 }
