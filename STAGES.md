@@ -73,14 +73,14 @@ The port avoids touching ~400+ Gtk widget call sites in the GUI files by install
 
 ## Stage 13 — manual smoke-test plan
 
-The automated suite covers the business / file-output surface but cannot construct GTK widgets. Manual smoke is required on a real Debian/Ubuntu system with libgtk-3-perl installed. Walk through each of the following on the `gtk3-port` branch:
+The automated suite covers the business / file-output surface but cannot construct GTK widgets. Manual smoke is required on a real Debian/Ubuntu system with libgtk3-perl installed. Walk through each of the following on the `gtk3-port` branch:
 
 ### Pre-flight
 
 - [ ] Install dependencies on Ubuntu 22.04 (or your distro equivalent):
   ```
   sudo apt-get install -y \
-      libgtk-3-perl libglib-perl libpango-perl libcairo-perl \
+      libgtk3-perl libglib-perl libpango-perl libcairo-perl \
       libmime-base64-perl liblocale-gettext-perl \
       libtest-deep-perl libtest-exception-perl \
       openssl zip tar

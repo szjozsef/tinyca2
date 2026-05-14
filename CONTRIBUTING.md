@@ -6,7 +6,7 @@ fork adds on top of upstream.
 
 ## Target platform
 
-- Debian / Ubuntu (anything with Perl 5.14+ and `libgtk-3-perl` available).
+- Debian / Ubuntu (anything with Perl 5.14+ and `libgtk3-perl` available).
 - The port deliberately does not target Windows or macOS. Run on Linux or WSL.
 
 ## Required system packages
@@ -16,7 +16,7 @@ On a Debian/Ubuntu host (or WSL2):
 ```
 sudo apt-get install \
     perl \
-    libgtk-3-perl libglib-perl libpango-perl libcairo-perl \
+    libgtk3-perl libglib-perl libpango-perl libcairo-perl \
     libtest-deep-perl libtest-exception-perl libfile-temp-perl \
     libmime-base64-perl liblocale-gettext-perl \
     openssl zip tar
@@ -28,7 +28,7 @@ binding — business-logic tests run via a minimal in-tree stub
 non-GUI test suite without GTK installed.
 
 From Stage 5 onwards (`use Gtk3` lands in the source tree) you will need
-`libgtk-3-perl` for module-load smoke tests and GTK3 itself for any manual
+`libgtk3-perl` for module-load smoke tests and GTK3 itself for any manual
 smoke testing of the application.
 
 ## Running the tests
