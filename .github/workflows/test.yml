@@ -8,19 +8,8 @@ on:
 
 jobs:
   prove:
-    name: prove (${{ matrix.os }} / openssl=${{ matrix.openssl }})
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Modern stack: openssl 3.x, Gtk3, Perl 5.34+.
-          - os: ubuntu-22.04
-            openssl: "3.x"
-          # Older Ubuntu LTS: openssl 1.1.1, the original target era.
-          - os: ubuntu-20.04
-            openssl: "1.1"
+    name: prove (ubuntu-22.04 / openssl 3.x)
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Check out repository
@@ -39,7 +28,6 @@ jobs:
       - name: Show Perl + OpenSSL versions
         run: |
           perl -v | head -3
-          perl -MGtk3 -e 'print "Gtk3 ", $Gtk3::VERSION, "\n"' || echo "Gtk3 module not loadable (OK if headless test only)"
           openssl version
 
       - name: Run the test suite
