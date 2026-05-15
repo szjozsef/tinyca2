@@ -9,3 +9,5 @@ A modified version of TinyCA2
 - added support for certificate dates > 2050 (support long date format in index.txt)
 - added support for ENV based DNS SAN entries
 - added crlnumber option to openssl.cnf (serial file for crl)
+- rewritten for GTK3, so again can be used on newer Linux
+- newer algorithms added (EcDSA/EdDSA)
