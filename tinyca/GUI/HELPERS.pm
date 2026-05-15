@@ -22,8 +22,122 @@ package GUI::HELPERS;
 
 use POSIX;
 use UI::Stock;            # Stage 6: shims `new_from_stock` to themed icons
-use UI::Compat;           # Stage 7: shims HBox/VBox/Separator/ButtonBox/Table
 use I18N qw(_);           # Stage 12: formalised gettext wrapper
+
+#
+# Stage 15: build a Gtk3::Grid pre-configured with the margins and
+# spacings the legacy `Gtk3::Table` shim applied. Replaces the call
+# pattern `Gtk3::Table->new($rows, $cols, $homogeneous)` — Grid grows
+# dynamically so the row/col hints are no longer needed.
+#
+# Pass `homogeneous => 1` to make every column and row the same size
+# (the legacy Table->new(.., 1) behaviour). The current codebase never
+# uses that, but it's plumbed through for future call sites.
+#
+sub create_grid {
+   my (%opt) = @_;
+   my $grid = Gtk3::Grid->new;
+   $grid->set_margin_start(10);
+   $grid->set_margin_end(10);
+   $grid->set_margin_top(5);
+   $grid->set_margin_bottom(5);
+   $grid->set_column_spacing(12);
+   $grid->set_row_spacing(4);
+   if ($opt{homogeneous}) {
+      $grid->set_row_homogeneous(1);
+      $grid->set_column_homogeneous(1);
+   }
+   return $grid;
+}
+
+#
+# Stage 13: shared builder for the "Command Details" expander used by
+# print_error / print_warning / print_info. Replaces three identical
+# inline blocks. Improvements:
+#   - monospace font for the openssl command (CSS via StyleContext)
+#   - cursor visible + text selectable so Ctrl+C / right-click copy work
+#   - both scrollbars allowed (long single-line commands are no longer
+#     destructively word-wrapped)
+#   - "Copy command" button beside the scrolled view
+#   - expander starts open so users see the command immediately
+#
+sub _make_details_expander {
+   my ($ext) = @_;
+
+   my $buffer = Gtk3::TextBuffer->new();
+   $buffer->set_text($ext);
+
+   my $text = Gtk3::TextView->new_with_buffer($buffer);
+   $text->set_editable(0);
+   $text->set_cursor_visible(1);
+   $text->set_wrap_mode('char');
+   eval { $text->set_left_margin(6); $text->set_right_margin(6); };
+   eval { $text->set_top_margin(4);  $text->set_bottom_margin(4);  };
+
+   eval {
+      my $css = Gtk3::CssProvider->new;
+      $css->load_from_data(
+         "textview, textview text { font-family: monospace; font-size: 10pt; }"
+      );
+      $text->get_style_context->add_provider(
+         $css, Gtk3::STYLE_PROVIDER_PRIORITY_USER,
+      );
+      1;
+   };
+
+   my $scrolled = Gtk3::ScrolledWindow->new(undef, undef);
+   $scrolled->set_policy('automatic', 'automatic');
+   $scrolled->set_shadow_type('etched-in');
+   $scrolled->set_min_content_height(120);
+   $scrolled->set_min_content_width(500);
+   $scrolled->add($text);
+
+   my $copy = Gtk3::Button->new_with_label(_("Copy command"));
+   $copy->signal_connect(clicked => sub {
+      my $start = $buffer->get_start_iter;
+      my $end   = $buffer->get_end_iter;
+      my $s     = $buffer->get_text($start, $end, 0);
+
+      # Write to BOTH X selections (CLIPBOARD + PRIMARY) so whichever
+      # one the X-to-Windows bridge syncs picks up the text. VcXsrv,
+      # X410 and similar may forward only one.
+      for my $sel ('CLIPBOARD', 'PRIMARY') {
+         my $clip;
+         eval {
+            my $atom = Gtk3::Gdk::Atom::intern($sel, 0);
+            $clip = Gtk3::Clipboard::get($atom);
+         };
+         $clip->set_text($s, -1) if $clip;
+      }
+
+      # Stage 13: fallback escape hatches for users whose X-to-Windows
+      # clipboard bridge is unreliable. Both run unconditionally:
+      #   - echo the command to STDERR so it's visible in the terminal
+      #     that launched tinyca (scroll up / select from there)
+      #   - write it to /tmp/tinyca-last-command.txt so it can be
+      #     scp'd or read via any other channel
+      print STDERR "----- tinyca: Copy command -----\n$s\n",
+                   "----- end tinyca command -----\n";
+      eval {
+         my $f = "/tmp/tinyca-last-command.txt";
+         open(my $fh, '>', $f) or die $!;
+         print $fh $s;
+         close($fh);
+      };
+   });
+
+   my $hb = Gtk3::Box->new('horizontal', 6);
+   $hb->pack_end($copy, 0, 0, 0);
+
+   my $vb = Gtk3::Box->new('vertical', 4);
+   $vb->pack_start($scrolled, 1, 1, 0);
+   $vb->pack_start($hb,       0, 0, 0);
+
+   my $expander = Gtk3::Expander->new(_("Command Details"));
+   $expander->set_expanded(1);
+   $expander->add($vb);
+   return $expander;
+}
 
 #
 #  Error message box, kills application
@@ -33,9 +147,9 @@ sub print_error {
 
    my ($box, $button, $dbutton, $expander, $text, $scrolled, $buffer);
 
-   $button = Gtk3::Button->new_from_stock('gtk-ok');
+   $button = UI::Stock->button('gtk-ok');
    $button->signal_connect('clicked', sub { HELPERS::exit_clean(1) });
-   $button->can_default(1);
+   $button->set_can_default(1);
 
    $box = Gtk3::MessageDialog->new(
          undef, [qw/destroy-with-parent modal/], 'error', 'none', $t);
@@ -43,21 +157,8 @@ sub print_error {
    $box->set_resizable(1);
 
    if(defined($ext)) {
-      $buffer = Gtk3::TextBuffer->new();
-      $buffer->set_text($ext);
-
-      $text = Gtk3::TextView->new_with_buffer($buffer);
-      $text->set_editable(0);
-      $text->set_wrap_mode('word');
-
-      $scrolled = Gtk3::ScrolledWindow->new(undef, undef);
-      $scrolled->set_policy('never', 'automatic');
-      $scrolled->set_shadow_type('etched-in');
-      $scrolled->add($text);
-
-      $expander = Gtk3::Expander->new(_("Command Details"));
-      $expander->add($scrolled);
-      $box->vbox->add($expander);
+      $expander = _make_details_expander($ext);
+      $box->get_content_area->add($expander);
    }
 
    $box->add_action_widget($button, 0);
@@ -73,9 +174,9 @@ sub print_warning {
 
    my ($box, $button, $dbutton, $expander, $text, $scrolled, $buffer);
 
-   $button = Gtk3::Button->new_from_stock('gtk-ok');
+   $button = UI::Stock->button('gtk-ok');
    $button->signal_connect('clicked', sub { $box->destroy() });
-   $button->can_default(1);
+   $button->set_can_default(1);
 
    $box = Gtk3::MessageDialog->new(
          undef, [qw/destroy-with-parent modal/], 'warning', 'none', $t);
@@ -83,21 +184,8 @@ sub print_warning {
    $box->set_resizable(1);
 
    if(defined($ext)) {
-      $buffer = Gtk3::TextBuffer->new();
-      $buffer->set_text($ext);
-
-      $text = Gtk3::TextView->new_with_buffer($buffer);
-      $text->set_editable(0);
-      $text->set_wrap_mode('word');
-
-      $scrolled = Gtk3::ScrolledWindow->new(undef, undef);
-      $scrolled->set_policy('never', 'automatic');
-      $scrolled->set_shadow_type('etched-in');
-      $scrolled->add($text);
-
-      $expander = Gtk3::Expander->new(_("Command Details"));
-      $expander->add($scrolled);
-      $box->vbox->add($expander);
+      $expander = _make_details_expander($ext);
+      $box->get_content_area->add($expander);
    }
    $box->add_action_widget($button, 0);
 
@@ -114,9 +202,9 @@ sub print_info {
 
    my ($box, $button, $dbutton, $buffer, $text, $scrolled, $expander);
 
-   $button = Gtk3::Button->new_from_stock('gtk-ok');
+   $button = UI::Stock->button('gtk-ok');
    $button->signal_connect('clicked', sub { $box->destroy() });
-   $button->can_default(1);
+   $button->set_can_default(1);
 
    $box = Gtk3::MessageDialog->new(
          undef, [qw/destroy-with-parent modal/], 'info', 'none', $t);
@@ -124,21 +212,8 @@ sub print_info {
    $box->set_resizable(1);
 
    if(defined($ext)) {
-      $buffer = Gtk3::TextBuffer->new();
-      $buffer->set_text($ext);
-
-      $text = Gtk3::TextView->new_with_buffer($buffer);
-      $text->set_editable(0);
-      $text->set_wrap_mode('word');
-
-      $scrolled = Gtk3::ScrolledWindow->new(undef, undef);
-      $scrolled->set_policy('never', 'automatic');
-      $scrolled->set_shadow_type('etched-in');
-      $scrolled->add($text);
-
-      $expander = Gtk3::Expander->new(_("Command Details"));
-      $expander->add($scrolled);
-      $box->vbox->add($expander);
+      $expander = _make_details_expander($ext);
+      $box->get_content_area->add($expander);
    }
    $box->add_action_widget($button, 0);
 
@@ -155,16 +230,32 @@ sub dialog_box {
 
    my $box = Gtk3::Dialog->new($title, undef, ["destroy-with-parent"]);
 
+   # Stage 13: on remote X servers (VcXsrv, X410, etc.) the window
+   # manager doesn't always stack dialogs above the main window when
+   # the parent is undef. Walk the toplevel list to find the main
+   # window, set this dialog transient-for it, and mark it modal so
+   # the WM is forced to keep it on top.
+   eval {
+      for my $tl (Gtk3::Window::list_toplevels()) {
+         my $title_str = eval { $tl->get_title } // '';
+         next unless $title_str =~ /Tiny\s*CA\s*Management/i;
+         $box->set_transient_for($tl);
+         last;
+      }
+      $box->set_modal(1);
+      1;
+   };
+
    $box->add_action_widget($button1, 0);
 
    if(defined($button2)) {
       $box->add_action_widget($button2, 0);
-      $box->action_area->set_layout('spread');
+      $box->get_action_area->set_layout('spread');
    }
 
    if(defined($text)) {
       my $label = create_label($text, 'center', 0, 1);
-      $box->vbox->pack_start($label, 0, 0, 0);
+      $box->get_content_area->pack_start($label, 0, 0, 0);
    }
 
    $box->signal_connect(response => sub { $box->destroy });
@@ -183,13 +274,31 @@ sub create_label {
    my $label = Gtk3::Label->new($text);
 
    $label->set_justify($mode);
+
+   # Stage 13: use the modern Gtk3 set_xalign / set_yalign API. The
+   # legacy `set_alignment($x, $y)` was deprecated in Gtk 3.14 and is
+   # a no-op on some bindings (including libgtk3-perl 0.038 on Debian
+   # 12), which left every "left" label visually centred in its cell.
    if($mode eq 'center') {
-      $label->set_alignment(0.5, 0.5);
-   }elsif($mode eq 'left') {
-      $label->set_alignment(0, 0);
-   }elsif($mode eq 'right') {
-      $label->set_alignment(1, 1);
+      $label->set_xalign(0.5);
+      $label->set_yalign(0.5);
+   } elsif($mode eq 'left') {
+      $label->set_xalign(0);
+      $label->set_yalign(0);
+   } elsif($mode eq 'right') {
+      $label->set_xalign(1);
+      $label->set_yalign(0);
    }
+
+   # Make labels expand horizontally to fill their cell so they all
+   # start at the same x coordinate within Grid columns. Without
+   # hexpand the label widget is only as wide as its text, which makes
+   # them appear at varying horizontal positions when columns are
+   # auto-sized.
+   $label->set_hexpand(1);
+   $label->set_halign('start') if $mode eq 'left';
+   $label->set_halign('end')   if $mode eq 'right';
+   $label->set_halign('center') if $mode eq 'center';
 
    $label->set_line_wrap($wrap);
 
@@ -208,15 +317,13 @@ sub label_to_table {
 
    $label = create_label($key, $mode, $wrap, $bold);
    $label->set_padding(20, 0);
-   $table->attach_defaults($label, 0, 1, $row, $row+1);
+   $table->attach($label, 0, $row, 1, ($row+1) - ($row));
 
    $label = create_label($val, $mode, $wrap, $bold);
    $label->set_padding(20, 0);
-   $table->attach_defaults($label, 1, 2, $row, $row+1);
+   $table->attach($label, 1, $row, 1, ($row+1) - ($row));
 
    $row++;
-   $table->resize($row, 2);
-
    return($row);
 }
 
@@ -229,12 +336,12 @@ sub entry_to_table {
    my ($label, $entry);
 
    $label = create_label($text, 'left', 0, 0);
-   $table->attach_defaults($label, 0, 1, $row, $row+1);
+   $table->attach($label, 0, $row, 1, ($row+1) - ($row));
 
    $entry = Gtk3::Entry->new();
    $entry->set_text($$var) if(defined($$var));
 
-   $table->attach_defaults($entry, 1, 2, $row, $row+1);
+   $table->attach($entry, 1, $row, 1, ($row+1) - ($row));
    $entry->signal_connect('changed' =>
          sub {GUI::CALLBACK::entry_to_var($entry, $entry, $var, $box)} );
    $entry->set_visibility($visibility);
@@ -263,10 +370,24 @@ sub create_activity_bar {
       undef, [qw/destroy-with-parent modal/], 'info', 'none', $t);
 
    $bar = Gtk3::ProgressBar->new();
+   # Stage 13: push a per-widget CSS provider to bump the bar's
+   # min-height — `set_size_request` is ignored because the theme
+   # CSS pins it to ~3 px on modern Gtk3 themes.
+   {
+      my $css = Gtk3::CssProvider->new;
+      eval {
+         $css->load_from_data(
+            "progressbar trough, progressbar progress { min-height: 22px; }"
+         );
+         $bar->get_style_context->add_provider(
+            $css, Gtk3::STYLE_PROVIDER_PRIORITY_APPLICATION,
+         );
+      };
+   }
    $bar->pulse();
    $bar->set_pulse_step(0.1);
 
-   $box->vbox->add($bar);
+   $box->get_content_area->add($bar);
 
    $box->show_all();
 
@@ -285,8 +406,9 @@ sub set_cursor {
    } else {
       $main->{'rootwin'}->set_cursor($main->{'cursor'});
    }
-   while(Gtk3->events_pending) {
-      Gtk3->main_iteration;
+   # Stage 13: function-call form. See UI.pm::yield for rationale.
+   while(Gtk3::events_pending()) {
+      Gtk3::main_iteration();
    }
 }
 

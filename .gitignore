@@ -32,3 +32,6 @@ nytprof/
 *.pem
 !template/*.pem
 !t/**/*.pem
+.claude/
+v1/
+v1/

@@ -29,9 +29,18 @@ use Gtk3 -init;
 use MIME::Base64;
 
 use POSIX;
-use Locale::gettext;
+# NOTE: Locale::gettext is wrapped by I18N.pm — we deliberately don't
+# `use Locale::gettext;` here in main:: to avoid its `_` alias for
+# gettext colliding with the explicit `use I18N qw(_)` import below
+# (Debian's libperl-locale-gettext exports `_` and triggers a
+# "Subroutine main::_ redefined" warning otherwise).
 
-use I18N qw(_);           # Stage 12: formalised gettext wrapper (exports `_`)
+# Load I18N but DO NOT import `_` into main:: — main:: never calls
+# `_(...)` directly (only the business / GUI modules do), and importing
+# would redefine main::_ (because Locale::gettext, loaded transitively
+# by I18N, has already exported its own `_` alias into main:: on some
+# distros — notably Debian's libperl-locale-gettext).
+use I18N ();
 use OpenSSL;
 use CA;
 use GUI;
@@ -118,6 +127,6 @@ if(@{$gui->{'CA'}->{'calist'}}) {
 # by `use I18N qw(_)` at the top of this file (and at the top of every
 # business / GUI module that calls _("...")).
 
-Gtk3->main();
+Gtk3::main();
 
 exit(0);

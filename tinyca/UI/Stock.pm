@@ -43,7 +43,7 @@ my %STOCK = (
     'gtk-refresh'          => [ '_Refresh',           'view-refresh'        ],
     'gtk-revert-to-saved'  => [ '_Revert',            'document-revert'     ],
     'gtk-properties'       => [ '_Properties',        'document-properties' ],
-    'gtk-convert'          => [ 'Convert',            undef                 ],
+    'gtk-convert'          => [ 'Convert',            'go-jump'             ],
     'gtk-yes'              => [ '_Yes',               undef                 ],
     'gtk-no'               => [ '_No',                undef                 ],
 );
@@ -77,6 +77,9 @@ sub button {
 sub tool_button {
     my ($class, $id) = @_;
     my $btn = Gtk3::ToolButton->new(undef, $class->label($id));
+    # Enable mnemonic interpretation of the label so "_Quit" renders as
+    # an underlined Q (Alt+Q) instead of the literal underscore.
+    $btn->set_use_underline(1);
     if (my $icon = $class->icon_name($id)) {
         $btn->set_icon_name($icon);
     }
@@ -91,24 +94,8 @@ sub image {
 }
 
 #
-# Install `new_from_stock` shim methods on the Gtk3 widget classes that
-# upstream code called it on. Idempotent.
-#
-my $installed = 0;
-sub install {
-    my $class = shift;
-    return if $installed;
-    $installed = 1;
-
-    no strict 'refs';
-    no warnings 'redefine';
-    *{'Gtk3::Button::new_from_stock'}     = sub { $class->button(    $_[1]) };
-    *{'Gtk3::ToolButton::new_from_stock'} = sub { $class->tool_button($_[1]) };
-    *{'Gtk3::Image::new_from_stock'}      = sub { $class->image(     $_[1], $_[2]) };
-    return 1;
-}
-
-# Auto-install on load. Callers just `use UI::Stock;` once.
-__PACKAGE__->install;
+# Stage 16: the auto-installed `new_from_stock` monkey-patches were
+# removed. Call the factory methods (`UI::Stock->button(...)` etc.)
+# directly instead. This module is now a plain helper, not a shim.
 
 1;

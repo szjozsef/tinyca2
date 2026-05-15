@@ -95,8 +95,13 @@ sub read_keylist {
 
    $modt = (stat($keydir))[9];
 
+   # Stage 13: use `>` not `>=`. See the longer comment in REQ.pm /
+   # read_reqlist for the rationale — when changes happen in the same
+   # wall-clock second as the previous read, time()'s 1-second
+   # resolution made the old `>=` comparison return cached data and
+   # left the in-memory list out of sync with disk.
    if(defined($self->{'lastread'}) &&
-      $self->{'lastread'} >= $modt) {
+      $self->{'lastread'} > $modt) {
       return(0);
    }
 
@@ -120,6 +125,15 @@ sub read_keylist {
    $self->{'keylist'} = $keylist;
 
    $self->{'lastread'} = time();
+
+   # Stage 13: restore default status. read_keylist doesn't set per-file
+   # status today but the convention is now uniform across CERT/REQ/KEY.
+   if(defined($main)) {
+      my $ca = $main->{'CA'} && $main->{'CA'}->{'actca'};
+      UI->status($main, defined($ca)
+            ? sprintf(_("  Actual CA: %s - Keys"), $ca)
+            : '');
+   }
    return(1);  # got new list
 }
 
@@ -364,12 +378,17 @@ sub get_export_key {
 
       unlink($opts->{'outfile'});
       if($opts->{'format'} eq 'ZIP') {
-         system($main->{'init'}->{'zipbin'}, '-j', $opts->{'outfile'},
+         system($main->{'init'}->{'zipbin'}, '-j', '-q', $opts->{'outfile'},
                $tmpcacert, $tmpkey, $tmpcert);
          my $ret = $? >> 8;
       } elsif ($opts->{'format'} eq 'TAR') {
-         system($main->{'init'}->{'tarbin'}, 'cfv', $opts->{'outfile'},
-               $tmpcacert, $tmpkey, $tmpcert);
+         # Stage 13: use `cf` (no verbose) and `-C $tmpdir` with relative
+         # basenames so tar doesn't echo every file and doesn't print the
+         # "Removing leading `/' from member names" warning that GNU tar
+         # emits when given absolute paths.
+         system($main->{'init'}->{'tarbin'}, 'cf', $opts->{'outfile'},
+               '-C', $main->{'tmpdir'},
+               'cacert.pem', 'key.pem', 'cert.pem');
          my $ret = $? >> 8;
       }
 
@@ -417,11 +436,31 @@ sub _check_key {
    };
 
    while(<KEY>) {
-      if(/RSA PRIVATE KEY/i) {
+      # Stage 13: also recognise PKCS#8 PEM headers. OpenSSL 3.0+
+      # (Debian 12 ships 3.0.x) emits `-----BEGIN ENCRYPTED PRIVATE KEY-----`
+      # from `openssl genrsa -aes256` instead of the legacy
+      # `-----BEGIN RSA PRIVATE KEY-----`. Without this branch the Type
+      # column showed "UNKNOWN" and convkey() produced a malformed
+      # `openssl -inform PEM ...` command line (no subcommand) — which
+      # the wrapper mis-reported as "Wrong password given" on export.
+      if(/BEGIN RSA PRIVATE KEY/i) {
          $type = "RSA";
          last;
-      } elsif(/DSA PRIVATE KEY/i) {
+      } elsif(/BEGIN DSA PRIVATE KEY/i) {
          $type = "DSA";
+         last;
+      } elsif(/BEGIN EC PRIVATE KEY/i) {
+         # Stage 24: SEC1-format ECDSA key. Modern `openssl genpkey`
+         # emits PKCS#8 by default; this branch catches keys created
+         # with the older `openssl ecparam -genkey` flow.
+         $type = "EC";
+         last;
+      } elsif(/BEGIN (ENCRYPTED )?PRIVATE KEY/i) {
+         # PKCS#8 wrapper — could hold RSA, DSA, EC, Ed25519, or Ed448.
+         # Inspecting the inner algorithm needs decrypting the key, so
+         # we display the wrapper type and let the user identify the
+         # actual algorithm via the Details dialog after open.
+         $type = "PKCS8";
          last;
       } else {
          $type = "UNKNOWN";
@@ -465,6 +504,12 @@ sub key_change_passwd {
          # works correctly.
          $inform = "PEM";
          $type   = "DSA";
+         last;
+      } elsif(/BEGIN (ENCRYPTED )?PRIVATE KEY/) {
+         # Stage 13: PKCS#8 format. OpenSSL 3.0+ emits this from
+         # `genrsa -aes256` instead of the legacy PKCS#1 header.
+         $inform = "PEM";
+         $type   = "PKCS8";
          last;
       } else {
          $type   = "UNKNOWN";

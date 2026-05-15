@@ -50,8 +50,12 @@ sub read_certlist {
 
    $modt = (stat($certdir))[9];
 
+   # Stage 13: `>` not `>=`. Matches read_reqlist after fixing the
+   # same-second cache hit bug — time() and directory mtime are both
+   # 1-second resolution, so equal timestamps don't prove the cached
+   # list reflects the latest on-disk state.
    if(defined($self->{'lastread'}) &&
-      ($self->{'lastread'} >= $modt) &&
+      ($self->{'lastread'} > $modt) &&
       not defined($force)) {
       UI->cursor($main, 0);
       return(0);
@@ -74,6 +78,14 @@ sub read_certlist {
 
    $main->{'barbox'}->pack_start($main->{'progress'}, 0, 0, 0);
    $main->{'progress'}->show();
+
+   # Stage 13: batch the per-cert GUI updates. On the Gtk3 introspected
+   # binding, every UI->status / progress->set_fraction / UI->yield call
+   # has noticeable per-call overhead (vs Gtk2's near-zero XS calls).
+   # Updating once per cert was visually identical to updating every
+   # 25 certs but ~25x faster on large CAs.
+   my $UPDATE_EVERY = 25;
+   my $idx = 0;
    foreach $f (@files) {
       next if $f =~ /^\./;
 
@@ -83,20 +95,25 @@ sub read_certlist {
       next if not defined($tmp);
       next if $tmp eq "";
 
-      if(defined($main)) {
+      if(defined($main) && ($idx % $UPDATE_EVERY == 0)) {
+         $p = ($idx / $c) * 100;
          $t = sprintf(_("   Read Certificate: %s"), $tmp);
          UI->status($main, $t);
-         $p += 100/$c;
          if($p/100 <= 1) {
             $main->{'progress'}->set_fraction($p/100);
             UI->yield;
          }
       }
+      $idx++;
 
       my $debugf = $certdir."/".$f.".pem";
 
+      # Stage 13: pass `lite => 1` — read_certlist only needs STATUS for
+      # the list view, so skip the 5 fingerprint shell-outs + the DER
+      # conversion + subject extraction. Full parse happens when the
+      # user clicks a row (via CERT::parse_cert → OpenSSL::parsecert).
       $parsed = $self->{'OpenSSL'}->parsecert($crlfile, $indexfile,
-            $certdir."/".$f.".pem", $force);
+            $certdir."/".$f.".pem", $force, { lite => 1 });
 
       defined($parsed) || do {
          UI->cursor($main, 0);
@@ -118,6 +135,11 @@ sub read_certlist {
       $main->{'progress'}->set_fraction(0);
       $main->{'barbox'}->remove($main->{'progress'});
       UI->cursor($main, 0);
+      # Stage 13: clear stale per-file status, see REQ.pm/read_reqlist.
+      my $ca = $main->{'CA'} && $main->{'CA'}->{'actca'};
+      UI->status($main, defined($ca)
+            ? sprintf(_("  Actual CA: %s - Certificates"), $ca)
+            : '');
    }
 
    return(1);  # got new list
@@ -598,12 +620,17 @@ sub export_cert {
 
       unlink($opts->{'outfile'});
       if($opts->{'format'} eq "ZIP") {
-         system($main->{'init'}->{'zipbin'}, '-j', $opts->{'outfile'},
+         system($main->{'init'}->{'zipbin'}, '-j', '-q', $opts->{'outfile'},
                $tmpcacert, $tmpkey, $tmpcert);
          my $ret = $? >> 8;
       } elsif ($opts->{'format'} eq "TAR") {
-         system($main->{'init'}->{'tarbin'}, 'cfv', $opts->{'outfile'},
-               $tmpcacert, $tmpkey, $tmpcert);
+         # Stage 13: use `cf` (no verbose) and `-C $tmpdir` with relative
+         # basenames so tar doesn't echo every file and doesn't print the
+         # "Removing leading `/' from member names" warning that GNU tar
+         # emits when given absolute paths.
+         system($main->{'init'}->{'tarbin'}, 'cf', $opts->{'outfile'},
+               '-C', $main->{'tmpdir'},
+               'cacert.pem', 'key.pem', 'cert.pem');
       }
 
       UI->cursor($main, 0);

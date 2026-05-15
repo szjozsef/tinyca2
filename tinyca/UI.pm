@@ -85,8 +85,13 @@ sub activity_bar {
 # idiom sprinkled through business modules.
 #
 sub yield {
-    while (Gtk3->events_pending) {
-        Gtk3->main_iteration;
+    # Function-call form, NOT method-call. The XS Gtk3 binding rejects a
+    # class invocant on these module-level main-loop functions —
+    # `Gtk3->events_pending` warns "passed too many parameters" and the
+    # return value is unreliable, which leaves the busy-wait spinning
+    # forever or returning prematurely.
+    while (Gtk3::events_pending()) {
+        Gtk3::main_iteration();
     }
 }
 
@@ -159,7 +164,7 @@ sub _pump_glib {
 #
 # Quit the main loop. Used by HELPERS::exit_clean.
 #
-sub main_quit { Gtk3->main_quit() }
+sub main_quit { Gtk3::main_quit() }
 
 #
 # Set the root-window cursor shape. Used by HELPERS::exit_clean to
@@ -167,9 +172,19 @@ sub main_quit { Gtk3->main_quit() }
 #
 sub root_window_cursor {
     my ($class, $shape) = @_;
-    my $w = Gtk3::Gdk->get_default_root_window();
-    my $c = Gtk3::Gdk::Cursor->new($shape);
-    $w->set_cursor($c);
+    # NOTE: function-call form for `get_default_root_window`, NOT method-
+    # call. The XS Gtk3 binding rejects a class invocant on Gdk
+    # module-level functions; `Gtk3::Gdk->get_default_root_window()`
+    # warns "passed too many parameters" and returns garbage.
+    # The cursor shape change is cosmetic — wrap in eval so the app
+    # keeps running if the binding has trouble with deprecated APIs
+    # like the cursor-name lookup.
+    eval {
+        my $w = Gtk3::Gdk::get_default_root_window();
+        my $c = Gtk3::Gdk::Cursor->new($shape);
+        $w->set_cursor($c) if $w;
+        1;
+    };
 }
 
 1;

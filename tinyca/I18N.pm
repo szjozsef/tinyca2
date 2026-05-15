@@ -37,8 +37,19 @@ our @EXPORT    = qw(_);
     # lands on top of it.
     no warnings 'redefine';
     sub _ {
-        my $s = Locale::gettext::gettext(@_);
-        utf8::decode($s) if defined $s;
+        my $msgid = shift;
+        # Defensive: callers occasionally pass undef (e.g. from a missing
+        # hash key); a returned undef would propagate as an "undefined
+        # mandatory argument" error inside Gtk3 constructors.
+        return '' unless defined $msgid;
+
+        my $s = Locale::gettext::gettext($msgid);
+        # If the gettext lookup misses (no .mo file installed, or this
+        # binding's gettext returns undef on miss instead of echoing
+        # the input), fall back to the input msgid so callers always
+        # get a defined, non-empty string.
+        $s = $msgid unless defined $s && length $s;
+        utf8::decode($s);
         return $s;
     }
 }

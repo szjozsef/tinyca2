@@ -87,11 +87,14 @@ sub exit_clean {
 
    $ret = 0 unless(defined $ret);
 
-   # Clear the busy cursor and shut down the GUI main loop via the
-   # UI seam (Stage 4 — see tinyca/UI.pm).
-   UI->root_window_cursor('left-ptr');
-   UI->main_quit();
-   exit($ret);
+   # Stage 13: on libgtk3-perl 0.038 (Debian 12), both the root-window
+   # cursor reset AND main_quit() have been observed to C-segfault on
+   # shutdown. Even plain exit() triggers a SIGSEGV during the Gtk3
+   # binding's library teardown. POSIX::_exit bypasses Perl END blocks
+   # AND the Gtk3 destructor — the kernel reclaims everything. The
+   # user-visible behaviour is identical (window closes immediately)
+   # except no spurious "Segmentation fault" appears on STDERR.
+   POSIX::_exit($ret);
 }
 
 #

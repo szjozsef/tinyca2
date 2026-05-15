@@ -294,8 +294,23 @@ sub read_reqlist {
 
    $modt = (stat($reqdir))[9];
 
+   # Stage 13: cache check matches CERT.pm/read_certlist (which already
+   # honoured the $force flag). Two changes vs the original:
+   #   1. Bypass the cache when $force is set — callers like import_req,
+   #      del_req and revoke chains pass force=0 today, but the flag is
+   #      still useful for explicit refreshes.
+   #   2. Use `>` instead of `>=`. time() is 1-second resolution and the
+   #      directory mtime is also second-granular: when a new request
+   #      file is written in the same wall-clock second as the previous
+   #      read, lastread == modt and the old `>=` returned cached data,
+   #      leaving the in-memory reqlist out of sync with disk. The
+   #      observed failure was a "would overwrite existing certificate"
+   #      false alarm when signing a freshly-imported request — the
+   #      stale reqlist made selection_dn() return the previous (now-
+   #      revoked) request's DN, whose cert file still existed on disk.
    if(defined($self->{'lastread'}) &&
-      $self->{'lastread'} >= $modt) {
+      ($self->{'lastread'} > $modt) &&
+      not $force) {
       UI->cursor($main, 0);
       return(0);
    }
@@ -314,6 +329,14 @@ sub read_reqlist {
 
    $main->{'barbox'}->pack_start($main->{'progress'}, 0, 0, 0);
    $main->{'progress'}->show();
+
+   # Stage 13: batch the GUI updates and drop the 25 ms per-request
+   # `select(...)` sleep. The sleep added up to seconds per CA on
+   # large request directories, and the Gtk3 introspected binding's
+   # per-call overhead on UI->status / set_fraction / UI->yield is
+   # already heavy enough that one update per cert is wasteful.
+   my $UPDATE_EVERY = 25;
+   my $idx = 0;
    while($f = readdir(DIR)) {
       next if $f =~ /^\./;
       $f =~ s/\.pem//;
@@ -322,16 +345,16 @@ sub read_reqlist {
       next if $d eq "";
       push(@{$reqlist}, $d);
 
-      if(defined($main)) {
+      if(defined($main) && ($idx % $UPDATE_EVERY == 0)) {
+         $p = ($idx / $c) * 100;
          $t = sprintf(_("   Read Request: %s"), $d);
          UI->status($main, $t);
-         $p += 100/$c;
          if($p/100 <= 1) {
             $main->{'progress'}->set_fraction($p/100);
             UI->yield;
          }
-         select(undef, undef, undef, 0.025);
       }
+      $idx++;
    }
    @{$reqlist} = sort(@{$reqlist});
    closedir(DIR);
@@ -345,6 +368,16 @@ sub read_reqlist {
       $main->{'progress'}->set_fraction(0);
       $main->{'barbox'}->remove($main->{'progress'});
       UI->cursor($main, 0);
+      # Stage 13: clear the per-file "Read Request: <dn>" status that
+      # the loop above sets every 25 iterations. Without this, the
+      # status bar keeps showing the last enumerated request long after
+      # enumeration is done, even if the user has selected a different
+      # request (confusing on small request lists where only the first
+      # entry triggers a status update).
+      my $ca = $main->{'CA'} && $main->{'CA'}->{'actca'};
+      UI->status($main, defined($ca)
+            ? sprintf(_("  Actual CA: %s - Requests"), $ca)
+            : '');
    }
 
    return(1);  # got new list
@@ -417,29 +450,30 @@ sub get_sign_req {
    defined($parsed) ||
       UI->error(_("Can't read Request file"));
 
+   # Stage 24: map the parsed SIG_ALGORITHM to a digest name that
+   # `openssl ca -md ...` accepts. Substring matching covers all
+   # the forms openssl prints for the algorithms tinyca supports:
+   #   RSA   : "sha256WithRSAEncryption" / "sha384WithRSAEncryption" / ...
+   #   DSA   : "dsa_with_SHA256" / "dsaWithSHA1" / ...
+   #   ECDSA : "ecdsa-with-SHA256" / "ecdsa-with-SHA384" / ...
+   #   EdDSA : "ED25519" / "ED448"                            <- no digest
+   #
+   # Edwards-curve algorithms have a built-in hash (Ed25519 uses SHA-512,
+   # Ed448 uses SHAKE-256); `openssl ca -md ED25519` errors with
+   # "inner_evp_generic_fetch: unsupported". For those, set digest to 0
+   # so OpenSSL::signreq omits the `-md` flag entirely and openssl picks
+   # its built-in hash.
    if(defined($parsed->{'SIG_ALGORITHM'})) {
-      $opts->{'digest'} = $parsed->{'SIG_ALGORITHM'};
-
-      if($opts->{'digest'} =~ /^md2/) {
-         $opts->{'digest'} = "sha256";
-      } elsif ($opts->{'digest'} =~ /^mdc2/) {
-         $opts->{'digest'} = "mdc2";
-      } elsif ($opts->{'digest'} =~ /^md4/) {
-         $opts->{'digest'} = "sha256";
-      } elsif ($opts->{'digest'} =~ /^md5/) {
-         $opts->{'digest'} = "sha256";
-      } elsif ($opts->{'digest'} =~ /^sha1/) {
-         $opts->{'digest'} = "sha256";
-      } elsif ($opts->{'digest'} =~ /^sha256/) {
-         $opts->{'digest'} = "sha256";
-      } elsif ($opts->{'digest'} =~ /^sha384/) {
-         $opts->{'digest'} = "sha384";
-      } elsif ($opts->{'digest'} =~ /^sha512/) {
-         $opts->{'digest'} = "sha512";
-      } elsif ($opts->{'digest'} =~ /^ripemd160/) {
-         $opts->{'digest'} = "ripemd160";
-      } else {
-      }
+      my $sig = lc($parsed->{'SIG_ALGORITHM'});
+      if    ($sig =~ /sha512/)          { $opts->{'digest'} = 'sha512';    }
+      elsif ($sig =~ /sha384/)          { $opts->{'digest'} = 'sha384';    }
+      elsif ($sig =~ /sha256/)          { $opts->{'digest'} = 'sha256';    }
+      elsif ($sig =~ /sha224/)          { $opts->{'digest'} = 'sha256';    }
+      elsif ($sig =~ /sha1|md[245]/)    { $opts->{'digest'} = 'sha256';    }
+      elsif ($sig =~ /ripemd160/)       { $opts->{'digest'} = 'ripemd160'; }
+      elsif ($sig =~ /mdc2/)            { $opts->{'digest'} = 'mdc2';      }
+      elsif ($sig =~ /ed25519|ed448/)   { $opts->{'digest'} = 0;           }
+      else                              { $opts->{'digest'} = 0;           }
    } else {
       $opts->{'digest'} = 0;
    }
