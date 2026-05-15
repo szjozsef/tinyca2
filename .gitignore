@@ -1,0 +1,37 @@
+# Build artefacts
+/blib/
+/Makefile
+/Makefile.old
+/pm_to_blib
+MYMETA.*
+*.bak
+*.swp
+*.tmp
+*.orig
+
+# Perl test/coverage output
+/cover_db/
+nytprof.out
+nytprof/
+
+# Editor / OS
+.idea/
+.vscode/
+*~
+.DS_Store
+
+# Scratch directory for in-progress tooling (per project workflow)
+/.claude/scratch/
+
+# Local perl library (debs extracted in the dev sandbox)
+/.claude/sandbox-perl/
+
+# Ad-hoc scratch produced during interactive debugging — never commit
+/tmp/
+/t/sync-probe.txt
+*.pem
+!template/*.pem
+!t/**/*.pem
+.claude/
+v1/
+v1/

@@ -18,6 +18,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 package GUI::X509_browser;
 
 use HELPERS;
@@ -25,6 +26,7 @@ use GUI::HELPERS;
 use GUI::X509_infobox;
 
 use POSIX;
+use I18N qw(_);           # Stage 12: formalised gettext wrapper
 
 my $tmpdefault="/tmp";
 
@@ -39,8 +41,6 @@ sub new {
    $self->{'main'} = shift;
    my $mode = shift;
 
-   my ($font, $fontfix);
-
    my $class = ref($that) || $that;
 
 
@@ -52,26 +52,15 @@ sub new {
       return undef;
    }
 
-   # initialize fonts and styles
-   $font    = Gtk2::Pango::FontDescription->from_string(
-         "-adobe-helvetica-bold-r-normal--*-120-*-*-*-*-*-*");
-   if(defined($font)) {
-      $self->{'stylebold'} = Gtk2::Style->new();
-      $self->{'stylebold'}->font_desc->from_string(
-            "-adobe-helvetica-bold-r-normal--*-120-*-*-*-*-*-*");
-   } else {
-      $self->{'stylebold'} = undef;
-   }
-
-   $fontfix = Gtk2::Pango::FontDescription->from_string(
-         "-adobe-courier-medium-r-normal--*-100-*-*-*-*-*-*");
-   if(defined($fontfix)) {
-      $self->{'stylefix'} = Gtk2::Style->new();
-      $self->{'stylefix'}->font_desc->from_string(
-            "-adobe-courier-medium-r-normal--*-100-*-*-*-*-*-*");
-   } else {
-      $self->{'stylefix'} = undef;
-   }
+   # Stage 10: removed dead-code initialisation of $self->{stylebold} and
+   # $self->{stylefix}. The original code created Gtk2::Style objects
+   # using XLFD font strings ("-adobe-helvetica-*") that don't resolve on
+   # modern fontconfig systems, then stored them on $self without ever
+   # applying them to any widget. Gtk3 removed Gtk2::Style entirely
+   # (replaced by Gtk3::StyleContext / CSS), so these lines also no
+   # longer compile-load. They are deleted; if a later stage needs bold
+   # or monospace fonts in the browser, use Pango attribute lists or a
+   # CSS provider on the relevant widget.
 
    bless($self, $class);
 
@@ -132,25 +121,48 @@ sub add_list {
       $self->{'x509box'}->destroy();
    }
 
-   $self->{'x509box'} = Gtk2::VBox->new(0, 0);
+   $self->{'x509box'} = Gtk3::Box->new('vertical', 0);
 
-   # pane for list (top) and cert infos (bottom)
-   $self->{'x509pane'} = Gtk2::VPaned->new();
-   $self->{'x509pane'}->set_position(250);
-   $self->{'x509box'}->add($self->{'x509pane'});
+   # Stage 13: NO VPaned. The original Gtk2 code put the list on top
+   # and the cert/req info panel below it inside a VPaned with a
+   # draggable divider. On this binding (libgtk3-perl 0.038) the
+   # combination of VPaned->pack1 + ScrolledWindow + TreeView ends up
+   # collapsing the TreeView's row area to zero height while still
+   # giving the pane its allocated pixels — the symptom we saw on
+   # TEST-SUB CA where the top of cert/req tabs rendered fully blank
+   # (no column headers, no rows) even though the model was populated
+   # and the selection was valid (info panel below was filled in
+   # correctly). The keys tab works because it never used a VPaned.
+   #
+   # Replace with a plain VBox layout: list (expand=1) on top, info
+   # panel (expand=0, natural size) on bottom for cert/req. Key mode
+   # has no info panel — list takes the entire tab. Losing the
+   # draggable divider is acceptable; the list now actually renders.
+   my $has_info = ($self->{'mode'} eq 'cert' || $self->{'mode'} eq 'req');
 
    $self->{'browser'}->pack_start($self->{'x509box'}, 1, 1, 0);
 
    # now the list
-   $x509listwin = Gtk2::ScrolledWindow->new(undef, undef);
-   $x509listwin->set_policy('automatic', 'automatic');
+   $x509listwin = Gtk3::ScrolledWindow->new(undef, undef);
+   # Stage 13: 'always' policy so scrollbars are visible on
+   # modern Adwaita-style Gtk3 themes (otherwise hidden until hover).
+   $x509listwin->set_policy('always', 'always');
    $x509listwin->set_shadow_type('etched-in');
-   $self->{'x509pane'}->pack1($x509listwin, 1, 1);
+   # Stage 13: keep a modest minimum (~3 rows). The info panel below
+   # (cert/req modes) is row-count-sized and can need ~340 px when
+   # a cert has 8 right-column fields + 3 fingerprint lines. A larger
+   # list minimum here pushes the info panel beyond the visible tab
+   # area and content gets clipped at the bottom. Keys mode has no
+   # info panel below — the list still expands to fill the tab.
+   $x509listwin->set_min_content_height(100);
+
+   # List on top, takes available vertical space.
+   $self->{'x509box'}->pack_start($x509listwin, 1, 1, 0);
 
    # shall we display certificates, requests or keys?
    if ((defined $self->{'mode'}) && ($self->{'mode'} eq "cert")) {
 
-      $self->{'x509store'} = Gtk2::ListStore->new(
+      $self->{'x509store'} = Gtk3::ListStore->new(
         'Glib::String',
         'Glib::String',
         'Glib::String',
@@ -165,7 +177,7 @@ sub add_list {
 
    } elsif ((defined $self->{'mode'}) && ($self->{'mode'} eq "req")) {
 
-      $self->{'x509store'} = Gtk2::ListStore->new(
+      $self->{'x509store'} = Gtk3::ListStore->new(
         'Glib::String',
         'Glib::String',
         'Glib::String',
@@ -179,7 +191,7 @@ sub add_list {
 
    } elsif ((defined $self->{'mode'}) && ($self->{'mode'} eq "key")) {
 
-      $self->{'x509store'} = Gtk2::ListStore->new(
+      $self->{'x509store'} = Gtk3::ListStore->new(
         'Glib::String',
         'Glib::String',
         'Glib::String',
@@ -199,12 +211,12 @@ sub add_list {
 
    $self->{'x509store'}->set_sort_column_id(0, 'ascending');
 
-   $self->{'x509clist'} = Gtk2::TreeView->new_with_model($self->{'x509store'});
+   $self->{'x509clist'} = Gtk3::TreeView->new_with_model($self->{'x509store'});
    $self->{'x509clist'}->get_selection->set_mode ('single');
 
    for(my $i = 0; $titles[$i]; $i++) {
-      $renderer = Gtk2::CellRendererText->new();
-      $column = Gtk2::TreeViewColumn->new_with_attributes(
+      $renderer = Gtk3::CellRendererText->new();
+      $column = Gtk3::TreeViewColumn->new_with_attributes(
             $titles[$i], $renderer, 'text' => $i);
       $column->set_sort_column_id($i);
       $column->set_resizable(1);
@@ -228,6 +240,23 @@ sub add_list {
    }
 
    $x509listwin->add($self->{'x509clist'});
+
+   # Stage 13: pre-create the bottom info panel for cert/req modes BEFORE
+   # the initial update() call. update_cert/req calls select_path(), which
+   # synchronously fires the selection 'changed' signal → _fill_info →
+   # update_info, and update_info needs both 'infowin' and 'infobox' to
+   # already exist on $self. Previously add_info() (called from GUI.pm)
+   # did this setup AFTER add_list, leaving the first 'changed' signal
+   # with infowin undef.
+   #
+   # infobox is packed with expand=0,fill=0 so it sits at the bottom at
+   # its natural height; the list above it gets the remaining space.
+   if ($has_info) {
+      $self->{'infowin'} = GUI::X509_infobox->new()
+            unless defined $self->{'infowin'};
+      $self->{'infobox'} = Gtk3::Box->new('vertical', 0);
+      $self->{'x509box'}->pack_start($self->{'infobox'}, 0, 0, 0);
+   }
 
    update($self, $directory, $crlfile, $indexfile, $true);
 
@@ -267,14 +296,26 @@ sub update_req {
     $self->{'main'}->{'REQ'}->read_reqlist(
           $directory, $crlfile, $indexfile, $force, $self->{'main'});
 
-    $self->{'x509store'}->clear();
+    # Stage 13: fresh ListStore each update — see update_cert.
+    my $new_store = Gtk3::ListStore->new(
+        'Glib::String', 'Glib::String', 'Glib::String', 'Glib::String',
+        'Glib::String', 'Glib::String', 'Glib::String',
+        'Glib::Int',
+    );
+    # Case-sensitive sort (matches Gtk2). See update_cert for rationale.
+    $new_store->set_sort_func(0, sub {
+        my ($model, $a, $b) = @_;
+        return ($model->get_value($a, 0) // '')
+            cmp ($model->get_value($b, 0) // '');
+    });
+    $new_store->set_sort_column_id(0, 'ascending');
 
     $ind = 0;
     foreach my $n (@{$self->{'main'}->{'REQ'}->{'reqlist'}}) {
       ($name, $state) = split(/\%/, $n);
       @line = split(/\:/, $name);
-      $iter = $self->{'x509store'}->append();
-      $self->{'x509store'}->set($iter,
+      $iter = $new_store->append();
+      $new_store->set($iter,
             0 => $line[0],
             1 => $line[1],
             2 => $line[2],
@@ -285,9 +326,17 @@ sub update_req {
             7 => $ind);
       $ind++;
     }
+
+    {
+       my $vadj = $self->{'x509clist'}->get_vadjustment;
+       $vadj->set_value(0) if $vadj;
+    }
+    $self->{'x509store'} = $new_store;
+    $self->{'x509clist'}->set_model($new_store);
+
      # now select the first row to display certificate informations
      $self->{'x509clist'}->get_selection->select_path(
-           Gtk2::TreePath->new_first());
+           Gtk3::TreePath->new_first());
 
 }
 
@@ -299,14 +348,34 @@ sub update_cert {
     $self->{'main'}->{'CERT'}->read_certlist(
           $directory, $crlfile, $indexfile, $force, $self->{'main'});
 
-    $self->{'x509store'}->clear();
+    # Stage 13: build a brand-new ListStore each update. Reusing the
+    # store + detach/reattach was supposed to dodge the row-inserted
+    # signal glitch in this binding, but it still dropped the first
+    # row on the cert tab. A fresh store, populated up-front, attached
+    # in one shot is the same pattern that finally worked for the
+    # Open CA dialog.
+    my $new_store = Gtk3::ListStore->new(
+        'Glib::String', 'Glib::String', 'Glib::String', 'Glib::String',
+        'Glib::String', 'Glib::String', 'Glib::String', 'Glib::String',
+        'Glib::Int',
+    );
+    # Stage 13: use Perl's `cmp` (case-sensitive ASCII order) instead
+    # of Gtk3's default locale-aware collation (case-insensitive on
+    # most modern systems). This restores Gtk2's behaviour where
+    # "General..." sorted before lowercase "c1...".
+    $new_store->set_sort_func(0, sub {
+        my ($model, $a, $b) = @_;
+        return ($model->get_value($a, 0) // '')
+            cmp ($model->get_value($b, 0) // '');
+    });
+    $new_store->set_sort_column_id(0, 'ascending');
 
     $ind = 0;
     foreach my $n (@{$self->{'main'}->{'CERT'}->{'certlist'}}) {
        ($name, $state) = split(/\%/, $n);
        @line = split(/\:/, $name);
-       $iter = $self->{'x509store'}->append();
-       $self->{'x509store'}->set($iter,
+       $iter = $new_store->append();
+       $new_store->set($iter,
              0 => $line[0],
              1 => $line[1],
              2 => $line[2],
@@ -319,9 +388,18 @@ sub update_cert {
 
         $ind++;
      }
+
+    # Reset scroll-to-top, then swap to the new store atomically.
+    {
+       my $vadj = $self->{'x509clist'}->get_vadjustment;
+       $vadj->set_value(0) if $vadj;
+    }
+    $self->{'x509store'} = $new_store;
+    $self->{'x509clist'}->set_model($new_store);
+
      # now select the first row to display certificate informations
      $self->{'x509clist'}->get_selection->select_path(
-           Gtk2::TreePath->new_first());
+           Gtk3::TreePath->new_first());
 }
 
 sub update_key {
@@ -331,14 +409,26 @@ sub update_key {
 
     $self->{'main'}->{'KEY'}->read_keylist($self->{'main'});
 
-    $self->{'x509store'}->clear();
+    # Stage 13: fresh ListStore each update — see update_cert.
+    my $new_store = Gtk3::ListStore->new(
+        'Glib::String', 'Glib::String', 'Glib::String', 'Glib::String',
+        'Glib::String', 'Glib::String', 'Glib::String', 'Glib::String',
+        'Glib::Int',
+    );
+    # Case-sensitive sort (matches Gtk2). See update_cert for rationale.
+    $new_store->set_sort_func(0, sub {
+        my ($model, $a, $b) = @_;
+        return ($model->get_value($a, 0) // '')
+            cmp ($model->get_value($b, 0) // '');
+    });
+    $new_store->set_sort_column_id(0, 'ascending');
 
     $ind = 0;
     foreach my $n (@{$self->{'main'}->{'KEY'}->{'keylist'}}) {
        ($name, $state) = split(/\%/, $n);
        @line = split(/\:/, $name);
-       $iter = $self->{'x509store'}->append();
-       $self->{'x509store'}->set($iter,
+       $iter = $new_store->append();
+       $new_store->set($iter,
              0 => $line[0],
              1 => $line[1],
              2 => $line[2],
@@ -351,6 +441,14 @@ sub update_key {
 
         $ind++;
      }
+
+    {
+       my $vadj = $self->{'x509clist'}->get_vadjustment;
+       $vadj->set_value(0) if $vadj;
+    }
+    $self->{'x509store'} = $new_store;
+    $self->{'x509clist'}->set_model($new_store);
+
 }
 
 sub update_info {
@@ -376,10 +474,11 @@ sub update_info {
        defined($parsed) ||
           GUI::HELPERS::print_error(_("Can't read file"));
 
-       if(not defined($self->{'infobox'})) {
-          $self->{'infobox'} = Gtk2::VBox->new();
-       }
-
+       # Stage 13: infobox / infowin are guaranteed to exist at this point
+       # because add_list() pre-creates them for cert/req modes before any
+       # selection signal can fire. The old fallback that created an
+       # unparented Gtk3::VBox here was a no-op visually (it was never
+       # packed into the widget tree) and is removed.
        $self->{'infowin'}->display($self->{'infobox'}, $parsed,
              $self->{'mode'}, $title);
 
@@ -392,50 +491,20 @@ sub update_info {
 #
 # add infobox to the browser window
 #
+# Stage 13: infobox setup has moved into add_list() (it now happens BEFORE
+# the initial update() runs, so the selection 'changed' signal fired by
+# select_path can populate it). This routine is kept for API compatibility
+# with GUI.pm and now just refreshes the panel for the current selection.
+# It used to re-create the infobox and pack it into x509pane->pack2 here,
+# which — combined with the lazy-create workaround that briefly lived in
+# _fill_info — produced a duplicated pack2 child and left the cert/req
+# top area looking empty after a CA switch.
+#
 sub add_info {
   my $self = shift;
 
-  my ($row, $index, $parsed, $title, $status, $list, $dn);
-
-  if ((defined $self->{'infowin'}) && ($self->{'infowin'} ne "")) {
-     $self->{'infowin'}->hide();
-  } else {
-     $self->{'infowin'} = GUI::X509_infobox->new();
-  }
-
-  $row = $self->{'x509clist'}->get_selection->get_selected();
-
-  if(defined($row)) {
-     if ($self->{'mode'} eq 'cert') {
-        $index = ($self->{'x509store'}->get($row))[8];
-        $list  = $self->{'main'}->{'CERT'}->{'certlist'};
-     } else {
-        $index = ($self->{'x509store'}->get($row))[7];
-        $list  = $self->{'main'}->{'REQ'}->{'reqlist'};
-     }
-  }
-
-  if (defined $index) {
-    ($dn, $status) = split(/\%/, $list->[$index]);
-    $dn = HELPERS::enc_base64($dn);
-
-    if ($self->{'mode'} eq 'cert') {
-       $parsed = $self->{'main'}->{'CERT'}->parse_cert($self->{'main'}, $dn,
-             $false);
-       $title="Certificate Information";
-    } else {
-      $parsed = $self->{'main'}->{'REQ'}->parse_req($self->{'main'}, $dn,
-            $false);
-      $title="Request Information";
-    }
-
-    defined($parsed) || GUI::HELPERS::print_error(_("Can't read file"));
-
-    $self->{'infobox'} = Gtk2::VBox->new();
-    $self->{'x509pane'}->pack2($self->{'infobox'}, 1, 1);
-    $self->{'infowin'}->display($self->{'infobox'}, $parsed, $self->{'mode'},
-          $title);
-  }
+  return unless (defined $self->{'infowin'} && defined $self->{'infobox'});
+  update_info($self);
 }
 
 sub hide {
@@ -455,12 +524,14 @@ sub destroy {
 #
 # signal handler for selected list items
 # (updates the X509_infobox window)
-# XXX why is that function needed??
 #
 sub _fill_info {
    my ($self) = @_;
 
-   update_info($self) if (defined $self->{'infowin'});
+   # Stage 13: infobox / infowin are pre-created in add_list before the
+   # initial update() runs (see comment there), so this is just a thin
+   # delegating wrapper for the selection 'changed' signal.
+   update_info($self) if defined $self->{'infowin'};
 }
 
 sub selection_fname {
@@ -724,7 +795,7 @@ __END__
 
 =head1 NAME
 
-GUI::X509_browser - Perl-Gtk2 browser for X.509 certificates and requests
+GUI::X509_browser - Perl-Gtk3 browser for X.509 certificates and requests
 
 =head1 SYNOPSIS
 
@@ -757,7 +828,7 @@ all arguments are optional.
 
 =item $title:
 
-the existing Gtk2::VBox inside which the info will be
+the existing Gtk3::VBox inside which the info will be
 displayed.
 
 =item $oktext:

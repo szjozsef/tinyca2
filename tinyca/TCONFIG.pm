@@ -17,10 +17,13 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 
 package TCONFIG;
 
 use POSIX;
+use UI;
+use I18N qw(_);
 
 sub new {
    my $self  = {};
@@ -39,14 +42,14 @@ sub init_config {
      $ca = $main->{'CA'}->{'actca'};
    }
    if(not defined($ca)) {
-      GUI::HELPERS::print_warning(_("Please select a CA first"));
+      UI->warning(_("Please select a CA first"));
       return;
    }
 
    $file = $main->{'CA'}->{$ca}->{'cnf'};
 
    open(IN, "<$file") || do {
-      GUI::HELPERS::print_warning(_("Can't open configuration"));
+      UI->warning(_("Can't open configuration"));
       return;
    };
 
@@ -309,7 +312,7 @@ sub config_ca {
       $ca = $main->{'CA'}->{'actca'};
    }
    if(not defined($ca)) {
-      GUI::HELPERS::print_warning(_("Can't get CA name"));
+      UI->warning(_("Can't get CA name"));
    }
 
    $action = GUI::TCONFIG::show_config_ca($main, $ca);
@@ -324,7 +327,7 @@ sub config_openssl {
       $ca = $main->{'CA'}->{'actca'};
    }
    if(not defined($ca)) {
-      GUI::HELPERS::print_warning(_("Can't get CA name"));
+      UI->warning(_("Can't get CA name"));
    }
 
    GUI::TCONFIG::show_configbox($main, $ca);
@@ -356,7 +359,7 @@ sub write_config {
    $file = $main->{'CA'}->{$ca}->{'cnf'};
 
    open(OUT, ">$file") || do {
-      GUI::HELPERS::print_warning(_("Can't open configfile"));
+      UI->warning(_("Can't open configfile"));
       return;
    };
 

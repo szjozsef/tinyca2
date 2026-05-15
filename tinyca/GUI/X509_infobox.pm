@@ -18,6 +18,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111, USA.
 
 use strict;
+use warnings;
 package GUI::X509_infobox;
 
 use HELPERS;
@@ -25,6 +26,7 @@ use GUI::HELPERS;
 use GUI::WORDS;
 
 use POSIX;
+use I18N qw(_);           # Stage 12: formalised gettext wrapper
 
 my $version = "0.1";
 my $true = 1;
@@ -58,13 +60,13 @@ sub display {
 
   # if title is given create a surrounding frame with the title
   if (defined $title) {
-     $self->{'child'}= Gtk2::Frame->new($title);
-     $self->{'x509textbox'}= Gtk2::VBox->new(0,0);
+     $self->{'child'}= Gtk3::Frame->new($title);
+     $self->{'x509textbox'}= Gtk3::Box->new('vertical', 0);
      $self->{'child'}->add($self->{'x509textbox'});
   }
   # otherwise we create the VBox directly inside the root widget
   else {
-     $self->{'child'} = Gtk2::VBox->new(0,0);
+     $self->{'child'} = Gtk3::Box->new('vertical', 0);
      $self->{'x509textbox'} = $self->{'child'};
   }
 
@@ -121,8 +123,31 @@ sub display {
    if(defined($self->{$bottombox})) {
       $self->{$bottombox}->destroy();
    }
-   $self->{$bottombox} = Gtk2::HBox->new(1, 0);
+   $self->{$bottombox} = Gtk3::Box->new('horizontal', 0);
+   $self->{$bottombox}->set_homogeneous(1);
    $self->{$textbox}->pack_start($self->{$bottombox}, 1, 1, 5);
+
+   # Stage 13: layout mode.
+   #   'cacert' — the CA tab; this panel IS the whole tab, so it must
+   #     fill the available vertical space. Use vexpand+expand=1/fill=1
+   #     packing so the data area stretches with the window.
+   #   'cert' / 'req' — the bottom panel of a list+info layout; the
+   #     panel's natural height drives how tall it is, list above
+   #     gets the rest. Use natural-size packing with valign='start'
+   #     so the shorter column doesn't leave empty rows below its
+   #     last data row (HBox forces equal column heights — without
+   #     valign='start' on each column, the shorter side's SW would
+   #     stretch to match the taller column and show empty space inside).
+   my $fill_tab = ($mode eq 'cacert');
+   # Stage 13: per-row pixel budget. Adwaita on Gtk3.24 lays out
+   # CellRendererText rows at ~28-30 px (default font 10pt + 4-6 px
+   # vertical padding). 26 was too tight — the Certificates tab's
+   # right column has 8 fields and would show a vertical scrollbar
+   # to reveal "Type". Bump to 30 with a small safety pad to ensure
+   # all rows are visible without needing to scroll.
+   my $row_h    = 30;
+   my $row_pad  = 10;
+   my ($left_rows, $right_rows);
 
    # vbox in the bottom/left
    if(defined($self->{$lefttable})) {
@@ -131,15 +156,26 @@ sub display {
    @fields = qw( CN EMAIL O OU L ST C);
    $self->{$lefttable} = _create_detail_table(\@fields, $parsed);
 
-   # the only widget i know to set shadow type :-(
-   $scrolled = Gtk2::ScrolledWindow->new();
-   $scrolled->set_shadow_type('etched-in');
-   $scrolled->set_policy('never', 'never');
+   $left_rows = $self->{$lefttable}->get_model->iter_n_children(undef);
+   $left_rows = 1 if $left_rows < 1;   # never request 0px tall
+   $self->{$lefttable}->set_size_request(-1, $left_rows * $row_h + $row_pad);
+   $self->{$lefttable}->set_vexpand($fill_tab ? 1 : 0);
 
-   $self->{$leftbox} = Gtk2::VBox->new(0, 0);
+   # the only widget i know to set shadow type :-(
+   $scrolled = Gtk3::ScrolledWindow->new();
+   $scrolled->set_shadow_type('etched-in');
+   $scrolled->set_policy('never', 'automatic');
+   $scrolled->set_propagate_natural_height(1);
+
+   $self->{$leftbox} = Gtk3::Box->new('vertical', 0);
+   $self->{$leftbox}->set_valign('start') unless $fill_tab;
    $self->{$bottombox}->pack_start($self->{$leftbox}, 1, 1, 0);
 
-   $self->{$leftbox}->pack_start($scrolled, 1, 1, 0);
+   if ($fill_tab) {
+      $self->{$leftbox}->pack_start($scrolled, 1, 1, 0);
+   } else {
+      $self->{$leftbox}->pack_start($scrolled, 0, 0, 0);
+   }
    $scrolled->add($self->{$lefttable});
 
    # vbox in the bottom/right
@@ -156,14 +192,25 @@ sub display {
 
    $self->{$righttable} = _create_detail_table(\@fields, $parsed);
 
-   $scrolled = Gtk2::ScrolledWindow->new();
-   $scrolled->set_shadow_type('etched-in');
-   $scrolled->set_policy('never', 'never');
+   $right_rows = $self->{$righttable}->get_model->iter_n_children(undef);
+   $right_rows = 1 if $right_rows < 1;
+   $self->{$righttable}->set_size_request(-1, $right_rows * $row_h + $row_pad);
+   $self->{$righttable}->set_vexpand($fill_tab ? 1 : 0);
 
-   $self->{$rightbox} = Gtk2::VBox->new(0, 0);
+   $scrolled = Gtk3::ScrolledWindow->new();
+   $scrolled->set_shadow_type('etched-in');
+   $scrolled->set_policy('never', 'automatic');
+   $scrolled->set_propagate_natural_height(1);
+
+   $self->{$rightbox} = Gtk3::Box->new('vertical', 0);
+   $self->{$rightbox}->set_valign('start') unless $fill_tab;
    $self->{$bottombox}->pack_start($self->{$rightbox}, 1, 1, 0);
 
-   $self->{$rightbox}->pack_start($scrolled, 1, 1, 0);
+   if ($fill_tab) {
+      $self->{$rightbox}->pack_start($scrolled, 1, 1, 0);
+   } else {
+      $self->{$rightbox}->pack_start($scrolled, 0, 0, 0);
+   }
    $scrolled->add($self->{$righttable});
 
    $self->{$textbox}->show_all();
@@ -186,26 +233,18 @@ sub hide {
 sub _create_detail_table {
    my ($fields, $parsed) = @_;
 
-   my ($list, $store, $rows, $words, @l, $iter, $column, $renderer);
+   my ($list, $store, $words, $iter, $column, $renderer);
 
    $words = GUI::WORDS->new();
 
-   $store = Gtk2::ListStore->new('Glib::String', 'Glib::String');
-   $list  = Gtk2::TreeView->new_with_model($store);
-   $list->set_headers_visible(0);
-   $list->get_selection->set_mode('none');
+   $store = Gtk3::ListStore->new('Glib::String', 'Glib::String');
 
-   $renderer = Gtk2::CellRendererText->new();
-   $column = Gtk2::TreeViewColumn->new_with_attributes(
-         '', $renderer, 'text' => 0);
-   $list->append_column($column);
-
-   $renderer = Gtk2::CellRendererText->new();
-   $column = Gtk2::TreeViewColumn->new_with_attributes(
-         '', $renderer, 'text' => 1);
-   $list->append_column($column);
-
-
+   # Stage 13: populate the store BEFORE attaching it to a TreeView.
+   # The Gtk3 binding on Debian 12 mishandles row-inserted signals for
+   # rows added after attachment, AND the parent ScrolledWindow has
+   # `set_policy('never','never')` so the TreeView's height-request is
+   # baked in at construction time (empty model => 0 height => fields
+   # appear missing). Pre-populating fixes both.
    foreach my $f (@{$fields}) {
       if(defined($parsed->{$f})){
          if(ref($parsed->{$f})) {
@@ -220,6 +259,20 @@ sub _create_detail_table {
       }
    }
 
+   $list  = Gtk3::TreeView->new_with_model($store);
+   $list->set_headers_visible(0);
+   $list->get_selection->set_mode('none');
+
+   $renderer = Gtk3::CellRendererText->new();
+   $column = Gtk3::TreeViewColumn->new_with_attributes(
+         '', $renderer, 'text' => 0);
+   $list->append_column($column);
+
+   $renderer = Gtk3::CellRendererText->new();
+   $column = Gtk3::TreeViewColumn->new_with_attributes(
+         '', $renderer, 'text' => 1);
+   $list->append_column($column);
+
    return($list);
 }
 
@@ -231,7 +284,7 @@ __END__
 
 =head1 NAME
 
-GUI::X509_infobox - show X.509 certificates and requests in a Gtk2::VBox
+GUI::X509_infobox - show X.509 certificates and requests in a Gtk3::VBox
 
 =head1 SYNOPSIS
 
@@ -245,20 +298,20 @@ GUI::X509_infobox - show X.509 certificates and requests in a Gtk2::VBox
 =head1 DESCRIPTION
 
 This displays the information of an X.509v3 certificate or
-certification request (CSR) inside a given Gtk2::VBox.
+certification request (CSR) inside a given Gtk3::VBox.
 
 Creation of an X509_infobox is done by calling B<new()>,
 no arguments are required.
 
 The infobox is shown when inserted into an already
-existing Gtk2::VBox using the method B<update()>. Arguments
+existing Gtk3::VBox using the method B<update()>. Arguments
 to update are:
 
 =over 1
 
 =item $parent:
 
-the existing Gtk2::VBox inside which the info will be
+the existing Gtk3::VBox inside which the info will be
 displayed.
 
 =item $parsed:
@@ -284,3 +337,4 @@ is drawn.
 An existing infobox is destroyed by calling B<hide()>.
 
 =cut
+are 'req' (certification request), 'cert' (certific

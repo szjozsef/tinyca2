@@ -22,18 +22,30 @@ BEGIN { unshift(@INC, '/usr/share/tinyca'); # put here the location of the modul
 }
 
 use strict;
+use warnings;
 
-use Gtk2 '-init';
+use Gtk3 -init;
 
 use MIME::Base64;
 
 use POSIX;
-use Locale::gettext;
+# NOTE: Locale::gettext is wrapped by I18N.pm — we deliberately don't
+# `use Locale::gettext;` here in main:: to avoid its `_` alias for
+# gettext colliding with the explicit `use I18N qw(_)` import below
+# (Debian's libperl-locale-gettext exports `_` and triggers a
+# "Subroutine main::_ redefined" warning otherwise).
 
+# Load I18N but DO NOT import `_` into main:: — main:: never calls
+# `_(...)` directly (only the business / GUI modules do), and importing
+# would redefine main::_ (because Locale::gettext, loaded transitively
+# by I18N, has already exported its own `_` alias into main:: on some
+# distros — notably Debian's libperl-locale-gettext).
+use I18N ();
 use OpenSSL;
 use CA;
 use GUI;
 use HELPERS;
+use UI;                   # GUI seam used by business modules (Stage 4)
 use GUI::TCONFIG;
 use GUI::HELPERS;
 use GUI::CALLBACK;
@@ -46,8 +58,7 @@ use KEY;
 use TCONFIG;
 
 setlocale(LC_MESSAGES, "");
-bindtextdomain("tinyca2", "/usr/share/locale/");
-textdomain("tinyca2");
+I18N->setup_textdomain("tinyca2", "/usr/share/locale/");
 
 # https://bugs.gentoo.org/show_bug.cgi?id=78576
 $ENV{XLIB_SKIP_ARGB_VISUALS}= '1';
@@ -112,12 +123,10 @@ if(@{$gui->{'CA'}->{'calist'}}) {
    $gui->{'CA'}->get_ca_create($gui);
 }
 
-sub _ {
-   my $s = gettext(@_);
-   utf8::decode($s);
-   return($s);
-}
+# Stage 12: the legacy inline `sub _ { gettext(@_) ... }` is replaced
+# by `use I18N qw(_)` at the top of this file (and at the top of every
+# business / GUI module that calls _("...")).
 
-Gtk2->main();
+Gtk3::main();
 
 exit(0);
