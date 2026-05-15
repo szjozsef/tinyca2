@@ -389,14 +389,21 @@ subtest 'KEY::_check_key: identifies an encrypted RSA PEM key' => sub {
     my $key = "$tc->{tmp}/check-rsa.key";
     $ssl->newkey(algo=>'RSA', bits=>1024, outfile=>$key, pass=>$tc->password);
 
-    # _check_key reads the file and looks for /RSA PRIVATE KEY/ or
-    # /DSA PRIVATE KEY/. OpenSSL 1.1+ may emit "ENCRYPTED PRIVATE KEY"
-    # for PKCS#8 wrapped keys, which neither arm matches. Verify that
-    # behaviour explicitly — locking it down for Stage 12 to address.
+    # _check_key recognises the four PEM header families tinyca handles:
+    #   BEGIN RSA PRIVATE KEY               -> 'RSA'   (legacy PKCS#1)
+    #   BEGIN DSA PRIVATE KEY               -> 'DSA'   (legacy)
+    #   BEGIN EC PRIVATE KEY                -> 'EC'    (legacy SEC1)
+    #   BEGIN [ENCRYPTED] PRIVATE KEY       -> 'PKCS8' (modern)
+    #   anything else                       -> 'UNKNOWN'
+    # OpenSSL 3.0+ (Debian 12, Ubuntu 22.04+ CI) emits PKCS#8 by default
+    # from `genrsa -aes256`, so the test must accept PKCS8 there.
     my $body = $tc->readfile($key);
-    my $expected_marker = $body =~ /RSA PRIVATE KEY/  ? 'RSA'
-                       : $body =~ /DSA PRIVATE KEY/  ? 'DSA'
-                       : 'UNKNOWN';
+    my $expected_marker =
+          $body =~ /BEGIN RSA PRIVATE KEY/            ? 'RSA'
+        : $body =~ /BEGIN DSA PRIVATE KEY/            ? 'DSA'
+        : $body =~ /BEGIN EC PRIVATE KEY/             ? 'EC'
+        : $body =~ /BEGIN (?:ENCRYPTED )?PRIVATE KEY/ ? 'PKCS8'
+        :                                              'UNKNOWN';
 
     my $name = 'fixture-key';
     my $got  = KEY::_check_key(undef, $key, $name);
